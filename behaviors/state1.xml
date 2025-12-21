@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<root BTCPP_format="4">
+  
+  <!-- Simple Behavior Tree for State 1 -->
+  
+  <BehaviorTree ID="State1">
+    <Speak 
+      name="SpeakState1"
+      text="Estado 1"
+      service_name="/tts_service"
+      timeout="5000"/>
+  </BehaviorTree>
+  
+</root>

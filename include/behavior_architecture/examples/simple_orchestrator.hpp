@@ -12,46 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef BEHAVIOR_ARCHITECTURE__EXAMPLES__RESTAURANT_ORCHESTRATOR_HPP_
-#define BEHAVIOR_ARCHITECTURE__EXAMPLES__RESTAURANT_ORCHESTRATOR_HPP_
+#ifndef BEHAVIOR_ARCHITECTURE__EXAMPLES__SIMPLE_ORCHESTRATOR_HPP_
+#define BEHAVIOR_ARCHITECTURE__EXAMPLES__SIMPLE_ORCHESTRATOR_HPP_
 
 #include "behavior_architecture/base_orchestrator.hpp"
-#include "std_msgs/msg/string.hpp"
 
 namespace behavior_architecture
 {
 namespace examples
 {
 
-enum class RestaurantState : int {
-  INIT = 0,
-  APPROACH_CUSTOMER = 1,
-  COLLECT_ORDER = 2,
-  COMPLETE = 3
-};
-
 /**
- * @brief Example orchestrator for restaurant waiter scenario
+ * @brief Simple example orchestrator with 2 states
  * 
- * This orchestrator demonstrates how to use the behavior_architecture framework
- * to coordinate multiple behaviors in a restaurant service scenario:
- * 1. Approach customer (follow behavior)
- * 2. Collect their order (interaction behaviors)
+ * State machine:
+ *   INIT -> STATE_1 -> STATE_2 -> STOP
+ * 
+ * Each state executes a simple BehaviorTree that speaks a message.
  */
-class RestaurantOrchestrator : public BaseOrchestrator
+class SimpleOrchestrator : public BaseOrchestrator
 {
 public:
-  RestaurantOrchestrator(BT::Blackboard::Ptr blackboard);
+  enum class State : int {
+    INIT = 0,
+    STATE_1 = 1,
+    STATE_2 = 2,
+    STOP = 3
+  };
+
+  explicit SimpleOrchestrator(BT::Blackboard::Ptr blackboard);
 
 protected:
   void control_cycle() override;
   void go_to_state(int state) override;
 
 private:
-  RestaurantState state_;
+  State state_;
 };
 
 }  // namespace examples
 }  // namespace behavior_architecture
 
-#endif  // BEHAVIOR_ARCHITECTURE__EXAMPLES__RESTAURANT_ORCHESTRATOR_HPP_
+#endif  // BEHAVIOR_ARCHITECTURE__EXAMPLES__SIMPLE_ORCHESTRATOR_HPP_

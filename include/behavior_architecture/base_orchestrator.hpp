@@ -1,4 +1,4 @@
-// Copyright 2024 Rodrigo Pérez-Rodríguez
+// Copyright 2025 Rodrigo Pérez-Rodríguez
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

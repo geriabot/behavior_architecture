@@ -19,16 +19,16 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Launch the restaurant example with behavior architecture."""
+    """Launch the simple example with 2-state behavior architecture."""
     
-    restaurant_example_node = Node(
+    simple_example_node = Node(
         package='behavior_architecture',
-        executable='restaurant_example',
-        name='restaurant_example',
+        executable='simple_example',
+        name='simple_example',
         output='screen',
         emulate_tty=True,
     )
 
     return LaunchDescription([
-        restaurant_example_node
+        simple_example_node
     ])

@@ -1,4 +1,4 @@
-// Copyright 2024 Rodrigo Pérez-Rodríguez
+// Copyright 2025 Rodrigo Pérez-Rodríguez
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,13 +23,17 @@ BehaviorRunner::BehaviorRunner(
   const std::string & name,
   const std::string & xml_path,
   const std::vector<std::string> & plugins,
-  const std::string & package_name)
+  const std::string & package_name,
+  int control_cycle_period_ms,
+  std::function<void(BT::BehaviorTreeFactory&)> custom_node_registrar)
   : CascadeLifecycleNode(name),
   blackboard_(blackboard),
   status_(BT::NodeStatus::IDLE),
   xml_path_(xml_path),
   package_name_(package_name),
   plugins_(plugins),
+  control_cycle_period_ms_(control_cycle_period_ms),
+  custom_node_registrar_(custom_node_registrar),
   executed_(false)
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner constructor (%s)", name.c_str());
@@ -49,29 +53,29 @@ BehaviorRunner::control_cycle()
   std_msgs::msg::String msg;
 
   if (!executed_) {
+    RCLCPP_DEBUG(get_logger(), "BehaviorRunner ticking tree (%s)", get_name());
     status_ = tree_.rootNode()->executeTick();
+  
+    switch (status_) {
+      case BT::NodeStatus::SUCCESS:
+        msg.data = "SUCCESS";
+        status_pub_->publish(msg);
+        RCLCPP_INFO(get_logger(), "Behavior tree (%s): SUCCESS", get_name());
+        executed_ = true;
+        break;
+      case BT::NodeStatus::RUNNING:
+        msg.data = "RUNNING";
+        status_pub_->publish(msg);
+        RCLCPP_INFO_ONCE(get_logger(), "Behavior tree (%s): RUNNING", get_name());
+        break;
+      default:
+        msg.data = "FAILURE";
+        status_pub_->publish(msg);
+        RCLCPP_INFO(get_logger(), "Behavior tree (%s): FAILURE", get_name());
+        executed_ = true;
+        break;
+    }
   }
-
-  switch (status_) {
-    case BT::NodeStatus::SUCCESS:
-      msg.data = "SUCCESS";
-      status_pub_->publish(msg);
-      RCLCPP_INFO(get_logger(), "Behavior tree (%s): SUCCESS", get_name());
-      executed_ = true;
-      break;
-    case BT::NodeStatus::RUNNING:
-      msg.data = "RUNNING";
-      status_pub_->publish(msg);
-      RCLCPP_INFO_ONCE(get_logger(), "Behavior tree (%s): RUNNING", get_name());
-      break;
-    default:
-      msg.data = "FAILURE";
-      status_pub_->publish(msg);
-      RCLCPP_INFO(get_logger(), "Behavior tree (%s): FAILURE", get_name());
-      executed_ = true;
-      break;
-  }
-
 }
 
 BT::NodeStatus
@@ -96,6 +100,12 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
     RCLCPP_DEBUG(get_logger(), "Plugin loaded: %s", plugin.c_str());
   }
 
+  // Register custom nodes if callback provided
+  if (custom_node_registrar_) {
+    custom_node_registrar_(factory);
+    RCLCPP_DEBUG(get_logger(), "Custom nodes registered");
+  }
+
   RCLCPP_DEBUG(get_logger(), "Getting node from blackboard");
   blackboard_->get("node", node_);
   RCLCPP_DEBUG(get_logger(), "Creating BT from XML");
@@ -104,10 +114,11 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
 
   status_pub_->on_activate();
 
-  timer_ =
-    create_wall_timer(10ms, std::bind(&BehaviorRunner::control_cycle, this));
+  timer_ = create_wall_timer(
+    std::chrono::milliseconds(control_cycle_period_ms_),
+    std::bind(&BehaviorRunner::control_cycle, this));
 
-  RCLCPP_INFO(get_logger(), "Timer created");
+  RCLCPP_INFO(get_logger(), "Timer created with period %dms", control_cycle_period_ms_);
 
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
@@ -116,11 +127,14 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 BehaviorRunner::on_deactivate(const rclcpp_lifecycle::State & /* previous_state */)
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner(%s) on_deactivate", get_name());
+  
+  timer_ = nullptr;
+  
+  // Publish DEACTIVATED status before deactivating the publisher
   std_msgs::msg::String msg;
   msg.data = "DEACTIVATED";
   status_pub_->publish(msg);
-
-  timer_ = nullptr;
+  
   status_pub_->on_deactivate();
 
   refresh();

@@ -69,6 +69,18 @@ install(TARGETS restaurant_example
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Example: Simple 2-state orchestrator
+add_executable(simple_example
+  src/examples/simple_main.cpp
+  src/examples/simple_orchestrator.cpp
+)
+target_link_libraries(simple_example ${PROJECT_NAME})
+ament_target_dependencies(simple_example ${dependencies})
+
+install(TARGETS simple_example
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_cpplint_FOUND TRUE)

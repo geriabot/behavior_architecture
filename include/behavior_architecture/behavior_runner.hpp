@@ -1,4 +1,4 @@
-// Copyright 2024 Rodrigo Pérez-Rodríguez
+// Copyright 2025 Rodrigo Pérez-Rodríguez
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
@@ -54,13 +55,17 @@ public:
    * @param xml_path Relative path to XML file (from package share directory)
    * @param plugins List of plugin library names to load
    * @param package_name Package name containing the XML file (default: "behavior_architecture")
+   * @param control_cycle_period_ms Control cycle period in milliseconds (default: 10ms)
+   * @param custom_node_registrar Optional callback to register custom BT nodes
    */
   BehaviorRunner(
     BT::Blackboard::Ptr blackboard,
     const std::string & name,
     const std::string & xml_path,
     const std::vector<std::string> & plugins,
-    const std::string & package_name = "behavior_architecture");
+    const std::string & package_name = "behavior_architecture",
+    int control_cycle_period_ms = 10,
+    std::function<void(BT::BehaviorTreeFactory&)> custom_node_registrar = nullptr);
 
   /**
    * @brief Get current BehaviorTree execution status
@@ -99,6 +104,8 @@ private:
   std::string xml_path_;
   std::string package_name_;
   std::vector<std::string> plugins_;
+  int control_cycle_period_ms_;
+  std::function<void(BT::BehaviorTreeFactory&)> custom_node_registrar_;
   
   rclcpp::Node::SharedPtr node_;
   rclcpp::TimerBase::SharedPtr timer_;

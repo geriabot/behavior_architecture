@@ -16,7 +16,7 @@
 #include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
 
 #include "behavior_architecture/behavior_runner.hpp"
-#include "behavior_architecture/examples/restaurant_orchestrator.hpp"
+#include "behavior_architecture/examples/simple_orchestrator.hpp"
 
 int main(int argc, char * argv[])
 {
@@ -33,32 +33,34 @@ int main(int argc, char * argv[])
   // Plugin library name (BehaviorTree.CPP will automatically add lib prefix and .so suffix)
   std::vector<std::string> plugins = {"libsocial_bt_nodes_plugin.so"};
   
-  auto follow_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+  auto state1_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
     blackboard,
-    "follow_behavior",
-    "behaviors/follow_behavior.xml",
+    "state1_runner",
+    "behaviors/state1.xml",
     plugins,
-    "behavior_architecture"
+    "behavior_architecture",
+    50  // Control cycle period: 50ms
   );
   
-  auto collect_order_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+  auto state2_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
     blackboard,
-    "collect_order",
-    "behaviors/collect_order.xml",
+    "state2_runner",
+    "behaviors/state2.xml",
     plugins,
-    "behavior_architecture"
+    "behavior_architecture",
+    50  // Control cycle period: 50ms
   );
 
   // Create orchestrator
-  auto orchestrator = std::make_shared<behavior_architecture::examples::RestaurantOrchestrator>(
+  auto orchestrator = std::make_shared<behavior_architecture::examples::SimpleOrchestrator>(
     blackboard
   );
 
   // Configure all nodes
-  follow_runner->trigger_transition(
+  state1_runner->trigger_transition(
     lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
   );
-  collect_order_runner->trigger_transition(
+  state2_runner->trigger_transition(
     lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
   );
   orchestrator->trigger_transition(
@@ -73,11 +75,11 @@ int main(int argc, char * argv[])
   // Create executor and add nodes
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
-  executor.add_node(follow_runner->get_node_base_interface());
-  executor.add_node(collect_order_runner->get_node_base_interface());
+  executor.add_node(state1_runner->get_node_base_interface());
+  executor.add_node(state2_runner->get_node_base_interface());
   executor.add_node(orchestrator->get_node_base_interface());
 
-  RCLCPP_INFO(rclcpp::get_logger("main"), "Restaurant service starting...");
+  RCLCPP_INFO(rclcpp::get_logger("main"), "Simple example starting...");
 
   executor.spin();
 

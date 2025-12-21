@@ -1,4 +1,4 @@
-// Copyright 2024 Rodrigo Pérez-Rodríguez
+// Copyright 2025 Rodrigo Pérez-Rodríguez
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,11 @@ BaseOrchestrator::check_behavior_finished()
   if (status_received_ != last_status_ && last_status_ != "") {
     status_received_ = last_status_;
     RCLCPP_DEBUG(get_logger(), "Behavior status changed to: %s", status_received_.c_str());
-    return true;
+    // Only return true if the behavior is actually finished (SUCCESS or FAILURE)
+    // Don't return true for RUNNING status
+    if (status_received_ == "SUCCESS" || status_received_ == "FAILURE") {
+      return true;
+    }
   }
   return false;
 }
