@@ -24,7 +24,6 @@ def generate_launch_description():
     simple_example_node = Node(
         package='behavior_architecture',
         executable='simple_example',
-        name='simple_example',
         output='screen',
         emulate_tty=True,
     )
