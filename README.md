@@ -1,0 +1,427 @@
+# behavior_architecture
+
+Generic behavior architecture framework for ROS 2 robots using FSM (Finite State Machine) and BehaviorTree coordination.
+
+## Overview
+
+This package provides a reusable framework for implementing hierarchical robot behaviors where:
+- A **Finite State Machine (FSM)** orchestrates high-level behavior states
+- **BehaviorTree nodes** (loaded as plugins) implement the actual behaviors for each state
+- **BehaviorRunner** loads and executes BehaviorTree XML files with lifecycle management
+- **BaseOrchestrator** coordinates BehaviorRunner activation/deactivation via cascade lifecycle
+- A **shared blackboard** enables communication between all components
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│          Custom Orchestrator (Your Package)          │
+│   ┌──────────────────────────────────────────────┐   │
+│   │  FSM Control Logic                           │   │
+│   │  - State transitions                         │   │
+│   │  - BehaviorRunner coordination               │   │
+│   └──────────────────────────────────────────────┘   │
+│              inherits from                           │
+│   ┌──────────────────────────────────────────────┐   │
+│   │  BaseOrchestrator                            │   │
+│   │  - Cascade lifecycle management              │   │
+│   │  - BehaviorRunner activation/deactivation    │   │
+│   │  - Status monitoring                         │   │
+│   └──────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────┘
+                         ↓
+              activates/deactivates via cascade
+                         ↓
+┌──────────────────────────────────────────────────────┐
+│              BehaviorRunner Nodes                    │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ │
+│  │ Runner 1     │ │ Runner 2     │ │ Runner 3     │ │
+│  │ - XML: bt1   │ │ - XML: bt2   │ │ - XML: bt3   │ │
+│  │ - Plugins    │ │ - Plugins    │ │ - Plugins    │ │
+│  └──────────────┘ └──────────────┘ └──────────────┘ │
+└──────────────────────────────────────────────────────┘
+                         ↓
+              loads plugins and executes trees
+                         ↓
+┌──────────────────────────────────────────────────────┐
+│             BehaviorTree Plugin Nodes                │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐   │
+│  │ Follow  │ │ Speak   │ │ Listen  │ │ Custom  │   │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘   │
+└──────────────────────────────────────────────────────┘
+```
+
+## Key Components
+
+### BehaviorRunner
+Lifecycle node that loads and executes BehaviorTree XML files with plugin support:
+- Loads BT plugins dynamically (e.g., `social_bt_nodes_plugin`)
+- Creates trees from XML files located in any package's share directory
+- Publishes execution status (SUCCESS, FAILURE, RUNNING)
+- Supports cascade lifecycle for coordinated activation
+
+### BaseOrchestrator
+Base class for implementing FSM-based behavior coordination:
+- Manages high-level state transitions
+- Activates/deactivates BehaviorRunner nodes via cascade lifecycle
+- Monitors behavior execution status
+- Provides shared blackboard for inter-component communication
+
+## Key Features
+
+- **Plugin-Based BT Nodes**: Load custom BT node libraries at runtime
+- **Reusable BehaviorRunner**: Use in any package by specifying XML path and plugins
+- **Extensible Orchestrator**: Implement custom FSM logic in derived classes
+- **Cascade Lifecycle Management**: Coordinated node activation/deactivation
+- **Package-Agnostic XML**: Load behavior trees from any package
+- **Shared Blackboard**: Communication between orchestrator and BT nodes
+- **Status Monitoring**: Built-in behavior execution tracking
+
+## Usage
+
+### Quick Start with Example
+
+This package includes a complete restaurant service example. To run it:
+
+```bash
+# Build the workspace
+cd ~/ros2_ws
+colcon build --packages-select behavior_architecture
+source install/setup.bash
+
+# Launch the example
+ros2 launch behavior_architecture restaurant_example.launch.py
+```
+
+The example demonstrates:
+- Two BehaviorRunner nodes with different XML files
+- FSM-based orchestrator coordinating state transitions
+- Integration with `social_bt_nodes` plugin library
+
+### 1. Create BehaviorTree XML Files
+
+Create XML files in your package's `behaviors/` directory:
+
+```xml
+<!-- behaviors/my_behavior.xml -->
+<?xml version="1.0"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="MyBehavior">
+    <Sequence>
+      <Speak text="Hello World" service_name="/tts_service"/>
+      <IsTargetDetected target_frame="target" base_frame="base_link"/>
+      <Follow target_frame="target" base_frame="base_link"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
+```
+
+### 2. Create BehaviorRunner Instances
+
+```cpp
+#include "behavior_architecture/behavior_runner.hpp"
+
+// Create shared blackboard
+auto blackboard = BT::Blackboard::create();
+
+// List of plugin libraries to load
+std::vector<std::string> plugins = {"social_bt_nodes_plugin"};
+
+// Create BehaviorRunner with explicit package name
+auto runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+  blackboard,
+  "my_behavior_runner",           // Node name
+  "behaviors/my_behavior.xml",    // Relative path from package share
+  plugins,                        // Plugin libraries
+  "my_package_name"               // Package containing the XML
+);
+```
+
+### 3. Create Your Orchestrator Class
+
+Inherit from `BaseOrchestrator` and implement the required methods:
+
+```cpp
+#include "behavior_architecture/base_orchestrator.hpp"
+
+namespace my_package
+{
+
+enum class MyState : int {
+  INIT = 0,
+  STATE_1 = 1,
+  STATE_2 = 2,
+  STOP = 3
+};
+
+class MyOrchestrator : public behavior_architecture::BaseOrchestrator
+{
+public:
+  MyOrchestrator(BT::Blackboard::Ptr blackboard)
+  : BaseOrchestrator("my_orchestrator_node", blackboard),
+    state_(MyState::INIT)
+  {
+    // Initialize your orchestrator
+  }
+
+protected:
+  void control_cycle() override
+  {
+    switch (state_) {
+      case MyState::INIT:
+        go_to_state(static_cast<int>(MyState::STATE_1));
+        break;
+      
+      case MyState::STATE_1:
+        if (check_behavior_finished()) {
+          if (last_status_ == "SUCCESS") {
+            go_to_state(static_cast<int>(MyState::STATE_2));
+          }
+        }
+        break;
+      
+      case MyState::STATE_2:
+        if (check_behavior_finished()) {
+          go_to_state(static_cast<int>(MyState::STOP));
+        }
+        break;
+      
+      case MyState::STOP:
+        break;
+    }
+  }
+
+  void go_to_state(int state) override
+  {
+    state_ = static_cast<MyState>(state);
+    
+    switch (state_) {
+      case MyState::STATE_1:
+        RCLCPP_INFO(get_logger(), "Transitioning to STATE_1");
+        add_activation("behavior_tree_node_1");
+        break;
+      
+      case MyState::STATE_2:
+        RCLCPP_INFO(get_logger(), "Transitioning to STATE_2");
+        remove_activation("behavior_tree_node_1");
+        add_activation("behavior_tree_node_2");
+        break;
+      
+      case MyState::STOP:
+        RCLCPP_INFO(get_logger(), "Stopping");
+        clear_activation();
+        break;
+    }
+  }
+
+private:
+  MyState state_;
+};
+
+}  // namespace my_package
+```
+
+### 4. Create Main Application
+
+```cpp
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
+#include "behavior_architecture/behavior_runner.hpp"
+#include "my_package/my_orchestrator.hpp"
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+
+  // Create shared blackboard
+  auto blackboard = BT::Blackboard::create();
+  
+  // Define plugins to load
+  std::vector<std::string> plugins = {"social_bt_nodes_plugin"};
+  
+  // Create BehaviorRunner nodes
+  auto runner1 = std::make_shared<behavior_architecture::BehaviorRunner>(
+    blackboard,
+    "behavior_1",
+    "behaviors/behavior1.xml",
+    plugins,
+    "my_package"
+  );
+  
+  auto runner2 = std::make_shared<behavior_architecture::BehaviorRunner>(
+    blackboard,
+    "behavior_2",
+    "behaviors/behavior2.xml",
+    plugins,
+    "my_package"
+  );
+
+  // Create orchestrator
+  auto orchestrator = std::make_shared<my_package::MyOrchestrator>(blackboard);
+
+  // Configure all nodes
+  runner1->trigger_transition(
+    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+  runner2->trigger_transition(
+    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+  orchestrator->trigger_transition(
+find_package(social_bt_nodes REQUIRED)  # If using social_bt_nodes plugins
+
+add_executable(my_behavior_node src/main.cpp src/my_orchestrator.cpp)
+target_link_libraries(my_behavior_node behavior_architecture)
+ament_target_dependencies(my_behavior_node
+  behavior_architecture
+  social_bt_nodes
+  rclcpp
+  rclcpp_cascade_lifecycle
+  behaviortree_cpp
+)
+
+# Install XML behavior files
+install(DIRECTORY behaviors/
+  DESTINATION share/${PROJECT_NAME}/behaviors
+)
+```
+
+## BehaviorRunner API
+
+### Constructor
+
+```cpp
+BehaviorRunner(
+  BT::Blackboard::Ptr blackboard,      // Shared blackboard
+  const std::string & name,            // Node name
+  const std::string & xml_path,        // Path to XML (from package share)
+  const std::vector<std::string> & plugins,  // Plugin libraries to load
+  const std::string & package_name = "behavior_architecture"  // Package with XML
+);
+```
+
+### Methods
+
+- `BT::NodeStatus get_bt_status()` - Get current tree execution status
+- `void refresh()` - Reset behavior runner to initial state
+
+### Published Topics
+
+- `behavior_status` (std_msgs/String) - Execution status updatesxecutor.add_node(runner1->get_node_base_interface());
+  executor.add_node(runner2->get_node_base_interface());
+  executor.add_node(orchestrator->get_node_base_interface());
+
+  executor.spin();
+Orchestrator
+  rclcpp::shutdown();
+  return 0;
+}
+```
+
+### 5. Package Integration
+
+Add to your package's `package.xml`:
+
+```xml
+<depend>behavior_architecture</depend>
+<depend>rclcpp</depend>
+<depend>rclcpp_cascade_lifecycle</depend>
+<depend>behaviortree_cpp</depend>
+```
+
+Add to your `CMakeLists.txt`:
+
+```cmake
+find_package(behavior_architecture REQUIRED)
+
+add_executable(my_behavior_node src/main.cpp src/my_orchestrator.cpp)
+ament_target_dependencies(my_behavior_node
+  behavior_architecture
+  rclcpp
+  rclcpp_cascade_lifecycle
+  behaviortree_cpp
+)
+```
+
+## Base Class API
+
+### Protected Methods
+
+#### `void control_cycle()` (pure virtual)
+Main control loop called periodically. Implement your FSM logic here.
+
+#### `void go_to_state(int state)` (pure virtual)
+Handle state transitions. Activate/deactivate BT nodes as needed.
+
+#### `bool check_behavior_finished()`
+Check if the currently active behavior tree has finished execution.
+Returns `true` if status changed from last check.
+
+#### `void status_callback(std_msgs::msg::String::UniquePtr msg)`
+Callback for behavior status updates. Status is stored in `last_status_`.
+
+### Protected Members
+
+- `BT::Blackboard::Ptr blackboard_` - Shared blackboard for BT communication
+- `std::string last_status_` - Last received behavior status ("SUCCESS", "FAILURE", "RUNNING")
+- `int control_cycle_rate_ms_` - Control cycle period (default: 100ms)
+
+### Cascade Lifecycle Methods
+
+From `rclcpp_cascade_lifecycle`:
+- `add_activation(const std::string& node_name)` - Activate a BT node
+- `remove_activation(const std::string& node_name)` - Deactivate a BT node
+- `clear_activation()` - Deactivate all BT nodes
+
+## Dependencies
+
+This package requires the following ROS 2 packages:
+
+- `rclcpp`
+- `rclcpp_cascade_lifecycle` (from [cascade_lifecycle](https://github.com/fmrico/cascade_lifecycle))
+- `behaviortree_cpp` (BehaviorTree.CPP 4.x)
+- `std_msgs`
+- `std_srvs`
+- `social_bt_nodes` (optional, for example/plugins)
+
+### Installing Dependencies
+
+```bash
+# Clone third-party dependencies
+cd ~/ros2_ws/src
+vcs import < behavior_architecture/thirdparty.repos
+
+# Build workspace
+cd ~/ros2_ws
+colcon build
+```
+
+## Included Examples
+
+### Restaurant Service Example
+
+Location: `src/examples/`
+
+Demonstrates a two-state behavior system:
+1. **Follow Behavior**: Robot follows a person
+2. **Collect Order**: Robot takes a food/drink order via speech
+
+Files:
+- `restaurant_orchestrator.cpp/hpp` - FSM orchestrator
+- `restaurant_main.cpp` - Main application
+- `behaviors/follow_behavior.xml` - Following behavior tree
+- `behaviors/collect_order.xml` - Order collection behavior tree
+- `launch/restaurant_example.launch.py` - Launch file
+
+## Building
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select behavior_architecture
+source install/setup.bash
+```
+
+## License
+
+Apache License 2.0
+
+## Author
+
+Rodrigo Pérez-Rodríguez (rodrigo.perez@urjc.es)

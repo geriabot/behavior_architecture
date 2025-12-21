@@ -1,0 +1,9 @@
+repositories:
+  cascade_lifecycle:
+    type: git
+    url: https://github.com/fmrico/cascade_lifecycle.git
+    version: main
+  social_bt_nodes:
+    type: git
+    url: https://github.com/rodperex/social_bt_nodes.git
+    version: main

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="CollectOrder">
+    <Sequence>
+      <!-- Greet customer -->
+      <Speak name="Greet"
+             text="Hola, ¿está listo para ordenar?"
+             service_name="/tts_service"
+             timeout="5000"/>
+      
+      <!-- Listen to response -->
+      <Listen name="ListenReady"
+              transcribed_text="{ready_response}"
+              service_name="/stt_service"
+              timeout="10000"/>
+      
+      <!-- Check if ready -->
+      <Confirmation name="CheckReady"
+                    text="{ready_response}"
+                    result="{ready_answer}"
+                    service_name="/yesno_service"
+                    timeout="5000"/>
+      
+      <!-- If ready, collect order -->
+      <Switch2 case_1="YES" case_2="NO" variable="{ready_answer}">
+        <!-- YES - proceed to collect order -->
+        <Sequence>
+          <Speak name="AskOrder"
+                 text="Perfecto. ¿Qué desea beber y comer?"
+                 service_name="/tts_service"
+                 timeout="5000"/>
+          
+          <Listen name="ListenOrder"
+                  transcribed_text="{order_text}"
+                  service_name="/stt_service"
+                  timeout="15000"/>
+          
+          <!-- Extract drink and meal -->
+          <Sequence>
+            <Extract name="ExtractDrink"
+                     interest="bebida"
+                     text="{order_text}"
+                     extracted_info="{drink}"
+                     service_name="/extract_service"
+                     timeout="10000"/>
+            
+            <Extract name="ExtractMeal"
+                     interest="comida"
+                     text="{order_text}"
+                     extracted_info="{meal}"
+                     service_name="/extract_service"
+                     timeout="10000"/>
+          </Sequence>
+          
+          <!-- Confirm order -->
+          <Speak name="ConfirmOrder"
+                 text="Perfecto. Déjeme confirmar su orden"
+                 service_name="/tts_service"
+                 timeout="5000"/>
+          
+          <Script code="order_list := drink + ',' + meal"/>
+          
+          <SpeakEnum name="SayOrder"
+                     text="{order_list}"
+                     separator=","
+                     language="es"
+                     service_name="/tts_service"
+                     timeout="5000"/>
+          
+          <Speak name="ThankYou"
+                 text="¡Gracias! Su orden estará lista pronto"
+                 service_name="/tts_service"
+                 timeout="5000"/>
+        </Sequence>
+        
+        <!-- NO - wait a moment -->
+        <Speak name="SayWait"
+               text="Está bien, avíseme cuando esté listo"
+               service_name="/tts_service"
+               timeout="5000"/>
+        
+        <!-- Default -->
+        <AlwaysFailure/>
+      </Switch2>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Node models for Groot visualization -->
+  <TreeNodesModel>
+    <Action ID="Speak">
+      <input_port name="text"/>
+      <input_port name="service_name"/>
+      <input_port name="timeout"/>
+    </Action>
+    <Action ID="SpeakEnum">
+      <input_port name="text"/>
+      <input_port name="separator"/>
+      <input_port name="language"/>
+      <input_port name="service_name"/>
+      <input_port name="timeout"/>
+    </Action>
+    <Action ID="Listen">
+      <input_port name="transcribed_text"/>
+      <input_port name="service_name"/>
+      <input_port name="timeout"/>
+    </Action>
+    <Action ID="Extract">
+      <input_port name="interest"/>
+      <input_port name="text"/>
+      <input_port name="extracted_info"/>
+      <input_port name="service_name"/>
+      <input_port name="timeout"/>
+    </Action>
+    <Action ID="Confirmation">
+      <input_port name="text"/>
+      <input_port name="result"/>
+      <input_port name="service_name"/>
+      <input_port name="timeout"/>
+    </Action>
+  </TreeNodesModel>
+</root>

@@ -1,0 +1,80 @@
+// Copyright 2024 Rodrigo Pérez-Rodríguez
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
+
+#include "behavior_architecture/behavior_runner.hpp"
+#include "behavior_architecture/examples/restaurant_orchestrator.hpp"
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+
+  // Create shared blackboard for inter-node communication
+  auto blackboard = BT::Blackboard::create();
+  
+  // Create BehaviorRunner nodes with all required parameters
+  std::vector<std::string> plugins = {"social_bt_nodes_plugin"};
+  
+  auto follow_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+    blackboard,
+    "follow_behavior",
+    "behaviors/follow_behavior.xml",
+    plugins,
+    "behavior_architecture"
+  );
+  
+  auto collect_order_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+    blackboard,
+    "collect_order",
+    "behaviors/collect_order.xml",
+    plugins,
+    "behavior_architecture"
+  );
+
+  // Create orchestrator
+  auto orchestrator = std::make_shared<behavior_architecture::examples::RestaurantOrchestrator>(
+    blackboard
+  );
+
+  // Configure all nodes
+  follow_runner->trigger_transition(
+    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
+  );
+  collect_order_runner->trigger_transition(
+    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
+  );
+  orchestrator->trigger_transition(
+    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
+  );
+
+  // Activate orchestrator (it will coordinate behavior runners via cascade)
+  orchestrator->trigger_transition(
+    lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE
+  );
+
+  // Create executor and add nodes
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(follow_runner->get_node_base_interface());
+  executor.add_node(collect_order_runner->get_node_base_interface());
+  executor.add_node(orchestrator->get_node_base_interface());
+
+  RCLCPP_INFO(rclcpp::get_logger("main"), "Restaurant service starting...");
+
+  executor.spin();
+
+  rclcpp::shutdown();
+  return 0;
+}
