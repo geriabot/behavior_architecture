@@ -15,6 +15,7 @@ find_package(behaviortree_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(social_bt_nodes REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 set(dependencies
   rclcpp
@@ -32,6 +33,7 @@ include_directories(include)
 add_library(${PROJECT_NAME} SHARED
   src/behavior_architecture/base_orchestrator.cpp
   src/behavior_architecture/behavior_runner.cpp
+  src/behavior_architecture/orchestrator_factory.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 
@@ -47,9 +49,12 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
-# Install behaviors directory
+# Install behaviors directory (with subdirectories)
 install(DIRECTORY behaviors/
   DESTINATION share/${PROJECT_NAME}/behaviors
+  FILES_MATCHING
+  PATTERN "*.xml"
+  PATTERN "*.md"
 )
 
 # Install launch directory
@@ -57,6 +62,25 @@ install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
 )
 
+# Install config directory
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
+
+# Generic action executor (YAML-configured)
+add_executable(action_executor
+  src/action_executor.cpp
+  src/examples/restaurant_orchestrator.cpp
+  src/examples/simple_orchestrator.cpp
+)
+target_link_libraries(action_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(action_executor ${dependencies})
+
+install(TARGETS action_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# 
 # Example: Restaurant orchestrator
 add_executable(restaurant_example
   src/examples/restaurant_main.cpp

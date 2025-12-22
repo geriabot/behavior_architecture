@@ -13,11 +13,15 @@
 // limitations under the License.
 
 #include "behavior_architecture/examples/restaurant_orchestrator.hpp"
+#include "behavior_architecture/orchestrator_factory.hpp"
 
 namespace behavior_architecture
 {
 namespace examples
 {
+
+// Register this orchestrator with the factory
+static OrchestratorRegistrar<RestaurantOrchestrator> restaurant_registrar("restaurant");
 
 RestaurantOrchestrator::RestaurantOrchestrator(BT::Blackboard::Ptr blackboard)
 : BaseOrchestrator("restaurant_orchestrator", blackboard),

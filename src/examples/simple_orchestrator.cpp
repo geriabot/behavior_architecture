@@ -13,11 +13,15 @@
 // limitations under the License.
 
 #include "behavior_architecture/examples/simple_orchestrator.hpp"
+#include "behavior_architecture/orchestrator_factory.hpp"
 
 namespace behavior_architecture
 {
 namespace examples
 {
+
+// Register this orchestrator with the factory
+static OrchestratorRegistrar<SimpleOrchestrator> simple_registrar("simple");
 
 SimpleOrchestrator::SimpleOrchestrator(BT::Blackboard::Ptr blackboard)
 : BaseOrchestrator("simple_orchestrator", blackboard),

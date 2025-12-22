@@ -31,9 +31,9 @@ BaseOrchestrator::BaseOrchestrator(
   this->declare_parameter<int>("control_cycle_rate_ms", 100);
   control_cycle_rate_ms_ = this->get_parameter("control_cycle_rate_ms").as_int();
 
-  // Create status subscriber
+  // Create status subscriber (absolute topic to receive from all behavior runners)
   status_sub_ = create_subscription<std_msgs::msg::String>(
-    "behavior_status", 10, 
+    "/behavior_status", 10, 
     std::bind(&BaseOrchestrator::status_callback, this, _1));
 
   RCLCPP_INFO(get_logger(), "BaseOrchestrator initialized: %s", node_name.c_str());

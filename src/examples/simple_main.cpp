@@ -36,7 +36,7 @@ int main(int argc, char * argv[])
   auto state1_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
     blackboard,
     "state1_runner",
-    "behaviors/state1.xml",
+    "behaviors/examples/state1.xml",
     plugins,
     "behavior_architecture",
     50  // Control cycle period: 50ms
@@ -45,7 +45,7 @@ int main(int argc, char * argv[])
   auto state2_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
     blackboard,
     "state2_runner",
-    "behaviors/state2.xml",
+    "behaviors/examples/state2.xml",
     plugins,
     "behavior_architecture",
     50  // Control cycle period: 50ms

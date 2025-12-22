@@ -1,0 +1,29 @@
+# Configuration for restaurant waiter scenario
+# This configuration creates a restaurant service that follows a customer
+# and collects their order
+
+# Node name for the ROS blackboard node
+node_name: "bt_node"
+
+# Type of orchestrator to use (must be registered in OrchestratorFactory)
+orchestrator_type: "restaurant"
+
+# Package name for resolving relative paths
+package_name: "behavior_architecture"
+
+# Plugin libraries to load (BehaviorTree.CPP plugins)
+# These provide custom behavior tree nodes
+plugin_libraries:
+  - "libsocial_bt_nodes_plugin.so"
+
+# List of behaviors to create and manage
+behaviors:
+  # Follow behavior - tracks and follows a person
+  - name: "follow_behavior"
+    behavior_file: "behaviors/reusable/follow_behavior.xml"
+    control_period_ms: 50
+  
+  # Collect order behavior - interacts with customer to take their order
+  - name: "collect_order"
+    behavior_file: "behaviors/examples/collect_order.xml"
+    control_period_ms: 50

@@ -1,0 +1,27 @@
+# Configuration for simple 2-state orchestrator example
+# This demonstrates a basic state machine with two behaviors
+
+# Node name for the ROS blackboard node
+node_name: "bt_node"
+
+# Type of orchestrator to use (must be registered in OrchestratorFactory)
+orchestrator_type: "simple"
+
+# Package name for resolving relative paths
+package_name: "behavior_architecture"
+
+# Plugin libraries to load (BehaviorTree.CPP plugins)
+plugin_libraries:
+  - "libsocial_bt_nodes_plugin.so"
+
+# List of behaviors to create and manage
+behaviors:
+  # First state behavior
+  - name: "state1_runner"
+    behavior_file: "behaviors/examples/state1.xml"
+    control_period_ms: 50
+  
+  # Second state behavior
+  - name: "state2_runner"
+    behavior_file: "behaviors/examples/state2.xml"
+    control_period_ms: 50

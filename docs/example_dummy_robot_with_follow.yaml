@@ -1,0 +1,37 @@
+# Example: Using follow_behavior from behavior_architecture in dummy_robot
+
+# This config demonstrates how to use reusable behaviors from 
+# behavior_architecture package alongside dummy_robot's own behaviors
+
+node_name: "dummy_robot_bt_node"
+
+orchestrator_type: "dummy_robot"
+
+# Global package name for behaviors without explicit package_name
+package_name: "dummy_robot"
+
+orchestrator_libraries:
+  - "libdummy_robot_orchestrator.so"
+
+plugin_libraries:
+  - "libsocial_bt_nodes_plugin.so"
+  - "libdummy_robot_bt_nodes.so"
+
+behaviors:
+  # Dummy robot's own behaviors (use global package_name)
+  - name: "state1_runner"
+    behavior_file: "behaviors/dummy_state1.xml"
+    control_period_ms: 50
+  
+  - name: "state2_runner"
+    behavior_file: "behaviors/dummy_state2.xml"
+    control_period_ms: 50
+  
+  # Reusable behavior from behavior_architecture package
+  - name: "follow_runner"
+    behavior_file: "behaviors/reusable/follow_behavior.xml"
+    package_name: "behavior_architecture"  # Override to use behavior_architecture
+    control_period_ms: 50
+
+# The orchestrator can now activate "follow_runner" just like any other runner
+# Example: activateRunner("follow_runner");

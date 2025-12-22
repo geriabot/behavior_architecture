@@ -1,6 +1,15 @@
 # behavior_architecture
 
-Generic behavior architecture framework for ROS 2 robots using FSM (Finite State Machine) and BehaviorTree coordination.
+Generic behavior architecture framework for ROS 2 robots using FSM (Finite State Machine) and BehaviorTree coordination with YAML-based configuration.
+
+## 📚 Documentation Index
+
+- **[behaviors/README.md](behaviors/README.md)** - Complete behavior catalogue with all available reusable behaviors
+- **[docs/USING_REUSABLE_BEHAVIORS.md](docs/USING_REUSABLE_BEHAVIORS.md)** - Quick reference for using behaviors in your packages
+- **[docs/ADDING_REUSABLE_BEHAVIORS.md](docs/ADDING_REUSABLE_BEHAVIORS.md)** - Step-by-step guide for creating new reusable behaviors
+- **[GENERIC_ACTION_EXECUTOR_README.md](GENERIC_ACTION_EXECUTOR_README.md)** - YAML configuration guide
+- **[ACTION_EXECUTOR_GUIDE.md](ACTION_EXECUTOR_GUIDE.md)** - Creating custom orchestrators
+- **[BEHAVIOR_CATALOGUE_SUMMARY.md](BEHAVIOR_CATALOGUE_SUMMARY.md)** - Summary of catalogue restructuring
 
 ## Overview
 
@@ -10,6 +19,7 @@ This package provides a reusable framework for implementing hierarchical robot b
 - **BehaviorRunner** loads and executes BehaviorTree XML files with lifecycle management
 - **BaseOrchestrator** coordinates BehaviorRunner activation/deactivation via cascade lifecycle
 - A **shared blackboard** enables communication between all components
+- **Action Executor** provides a generic YAML-configured runtime for any orchestrator
 
 ## Architecture
 
@@ -71,6 +81,7 @@ Base class for implementing FSM-based behavior coordination:
 
 - **Plugin-Based BT Nodes**: Load custom BT node libraries at runtime
 - **Reusable BehaviorRunner**: Use in any package by specifying XML path and plugins
+- **Reusable Behavior Catalogue**: Library of tested, documented behaviors ready to use
 - **Extensible Orchestrator**: Implement custom FSM logic in derived classes
 - **Cascade Lifecycle Management**: Coordinated node activation/deactivation
 - **Package-Agnostic XML**: Load behavior trees from any package
@@ -81,7 +92,7 @@ Base class for implementing FSM-based behavior coordination:
 
 ### Quick Start with Example
 
-This package includes a complete restaurant service example. To run it:
+This package includes complete examples that demonstrate the YAML-configured action executor:
 
 ```bash
 # Build the workspace
@@ -89,13 +100,64 @@ cd ~/ros2_ws
 colcon build --packages-select behavior_architecture
 source install/setup.bash
 
-# Launch the example
-ros2 launch behavior_architecture restaurant_example.launch.py
+# Run the simple example (basic two-state FSM)
+ros2 launch behavior_architecture action_executor_simple.launch.py
+
+# Run the restaurant service example (more complex)
+ros2 launch behavior_architecture action_executor_restaurant.launch.py
 ```
 
-The example demonstrates:
-- Two BehaviorRunner nodes with different XML files
+The examples demonstrate:
+- YAML-based orchestrator and behavior configuration
+- Multiple BehaviorRunner nodes with different XML files
 - FSM-based orchestrator coordinating state transitions
+- Dynamic loading of orchestrator and plugin libraries
+- Integration with `social_bt_nodes` plugin library
+- Use of reusable behaviors from the package catalogue
+
+## Reusable Behavior Catalogue
+
+This package includes a **catalogue of reusable behaviors** that can be used in any ROS 2 package:
+
+```
+behaviors/
+├── reusable/          # Production-ready, reusable behaviors
+│   └── follow_behavior.xml
+└── examples/          # Example/demo behaviors
+    ├── collect_order.xml
+    ├── state1.xml
+    └── state2.xml
+```
+
+### Using Reusable Behaviors
+
+Reference behaviors directly in your YAML configuration:
+
+```yaml
+behaviors:
+  - name: "follow_runner"
+    behavior_file: "behaviors/reusable/follow_behavior.xml"  # From this package
+    control_period_ms: 50
+```
+
+Or include them as SubTrees in your behavior XML files:
+
+```xml
+<include path="package://behavior_architecture/behaviors/reusable/follow_behavior.xml"/>
+<SubTree ID="FollowBehavior" target_frame="person"/>
+```
+
+**Documentation**:
+- [behaviors/README.md](behaviors/README.md) - Complete catalogue with all available behaviors
+- [docs/USING_REUSABLE_BEHAVIORS.md](docs/USING_REUSABLE_BEHAVIORS.md) - Quick reference guide
+
+## Standard Workflow (Recommended)
+
+The recommended approach uses YAML configuration with the generic `action_executor`:
+
+#### ltiple BehaviorRunner nodes with different XML files
+- FSM-based orchestrator coordinating state transitions
+- Dynamic loading of orchestrator and plugin libraries
 - Integration with `social_bt_nodes` plugin library
 
 ### 1. Create BehaviorTree XML Files
@@ -112,28 +174,7 @@ Create XML files in your package's `behaviors/` directory:
       <IsTargetDetected target_frame="target" base_frame="base_link"/>
       <Follow target_frame="target" base_frame="base_link"/>
     </Sequence>
-  </BehaviorTree>
-</root>
-```
-
-### 2. Create BehaviorRunner Instances
-
-```cpp
-#include "behavior_architecture/behavior_runner.hpp"
-
-// Create shared blackboard
-auto blackboard = BT::Blackboard::create();
-
-// List of plugin libraries to load
-std::vector<std::string> plugins = {"social_bt_nodes_plugin"};
-
-// Create BehaviorRunner with explicit package name
-auto runner = std::make_shared<behavior_architecture::BehaviorRunner>(
-  blackboard,
-  "my_behavior_runner",           // Node name
-  "behaviors/my_behavior.xml",    // Relative path from package share
-  plugins,                        // Plugin libraries
-  "my_package_name"               // Package containing the XML
+  <# 2_package_name"               // Package containing the XML
 );
 ```
 
@@ -414,14 +455,50 @@ Files:
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select behavior_architecture
-source install/setup.bash
+colAction Executor
+
+The `action_executor` is a generic executable that loads orchestrators and behaviors dynamically based on YAML configuration. This eliminates the need to write boilerplate main() programs for each robot application.
+
+### Features
+
+- **Dynamic Orchestrator Loading**: Load any registered orchestrator by name
+- **YAML Configuration**: Define all components declaratively
+- **Plugin System**: Load both orchestrator and BT node plugins at runtime
+- **No Code Duplication**: One executable works for all behavior systems
+- **Easy Testing**: Swap configurations without recompilation
+
+### Usage
+
+```bash
+# Run with a specific configuration
+ros2 run behavior_architecture action_executor /path/to/config.yaml
+
+# List available orchestrator types
+ros2 run behavior_architecture action_executor
 ```
 
-## License
+See included examples for complete working configurations.
 
-Apache License 2.0
+## Included Examples
 
-## Author
+### Simple Example
 
-Rodrigo Pérez-Rodríguez (rodrigo.perez@urjc.es)
+Location: `src/examples/simple_*`, `config/simple_config.yaml`
+
+A minimal two-state FSM demonstration:
+- **STATE_1**: Prints "Hello from State 1"
+- **STATE_2**: Prints "Hello from State 2"
+
+Run: `ros2 launch behavior_architecture action_executor_simple.launch.py`
+
+### Restaurant Service Example
+
+Location: `src/examples/restaurant_*`, `config/restaurant_config.yaml`
+
+Demonstrates a practical two-state behavior system:
+1. **Follow Behavior**: Robot follows a person using vision
+2. **Collect Order**: Robot takes a food/drink order via speech
+
+Run: `ros2 launch behavior_architecture action_executor_restaurant.launch.py`
+
+Both examples showcase the complete workflow from orchestrator implementation to YAML configuration and launch files.

@@ -36,7 +36,7 @@ int main(int argc, char * argv[])
   auto follow_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
     blackboard,
     "follow_behavior",
-    "behaviors/follow_behavior.xml",
+    "behaviors/reusable/follow_behavior.xml",
     plugins,
     "behavior_architecture"
   );
@@ -44,7 +44,7 @@ int main(int argc, char * argv[])
   auto collect_order_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
     blackboard,
     "collect_order",
-    "behaviors/collect_order.xml",
+    "behaviors/examples/collect_order.xml",
     plugins,
     "behavior_architecture"
   );

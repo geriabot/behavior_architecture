@@ -44,7 +44,8 @@ BehaviorRunner::BehaviorRunner(
   RCLCPP_DEBUG(get_logger(), "Package: %s", package_name_.c_str());
   RCLCPP_DEBUG(get_logger(), "# plugins: %ld", plugins_.size());
 
-  status_pub_ = create_publisher<std_msgs::msg::String>("behavior_status", 10);
+  // Create status publisher (absolute topic for orchestrator communication)
+  status_pub_ = create_publisher<std_msgs::msg::String>("/behavior_status", 10);
 }
 
 void
