@@ -1,0 +1,43 @@
+# LLM-guided configuration for behavior_architecture
+# orchestrator_type: "llm" tells the system to use the LLM planning pipeline
+# instead of a hard-coded state-machine orchestrator.
+#
+# Usage:
+#   ros2 launch behavior_architecture llm_dummy_demo.launch.py \
+#     config_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/test_goal.yaml
+
+# ── Common fields (shared with fixed-orchestrator configs) ────────────────────
+node_name: "bt_node"
+orchestrator_type: "llm"
+package_name: "behavior_architecture"
+
+# BT plugin library that provides the action nodes
+plugin_libraries:
+  - "libdummy_bt_nodes_plugin.so"
+
+# ── LLM-specific fields ───────────────────────────────────────────────────────
+
+# Package whose node_descriptions/*.yaml the BT builder uses
+bt_nodes_packages:
+  - "dummy_bt_nodes"
+bt_control_period_ms: 50
+bt_timeout_sec: 60.0
+
+# LLM provider settings — can be different for each component
+# planner: responsible for breaking the goal into a sequence of steps
+planner_llm_provider: "gemini"   # gemini | openai | anthropic | deepseek | ollama
+planner_llm_model: "gemini-2.5-flash"
+planner_llm_api_key: ""          # leave empty to auto-detect from environment variables
+
+# bt_builder: responsible for generating BT XML from a step description
+bt_builder_llm_provider: "gemini"
+bt_builder_llm_model: "gemini-2.5-flash"
+bt_builder_llm_api_key: ""
+
+# ── Goal definition (sent to the LLM planner at start-up) ────────────────────
+goal: "Greet the customer and take their order"
+context: |
+  NAO robot acting as a waiter in a restaurant.
+  The robot is currently at the entrance.
+  There are 5 tables; customers sit and wait to be attended.
+  The robot must approach the customer, greet them politely, and collect their order.

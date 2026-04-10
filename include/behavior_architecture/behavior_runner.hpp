@@ -21,7 +21,7 @@
 #include <functional>
 
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "behaviortree_cpp/behavior_tree.h"
 #include "behaviortree_cpp/bt_factory.h"
@@ -45,7 +45,7 @@ using namespace std::chrono_literals;
  * - Supports lifecycle management
  * - Can be activated/deactivated by orchestrator
  */
-class BehaviorRunner : public rclcpp_cascade_lifecycle::CascadeLifecycleNode
+class BehaviorRunner : public rclcpp_lifecycle::LifecycleNode
 {
 public:
   /**
@@ -74,6 +74,12 @@ public:
   BT::NodeStatus get_bt_status();
 
   /**
+   * @brief Set BT XML string directly (skips file loading in on_activate)
+   * @param xml BehaviorTree XML string
+   */
+  void set_bt(const std::string & xml);
+
+  /**
    * @brief Reset the behavior runner to initial state
    * 
    * Halts the current tree and resets execution status
@@ -98,6 +104,7 @@ protected:
 
 private:
   BT::Blackboard::Ptr blackboard_;
+  std::string bt_xml_;  // if non-empty, on_activate uses createTreeFromText instead of file
   BT::Tree tree_;
   BT::NodeStatus status_;
   

@@ -14,9 +14,10 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>behaviortree_cpp</depend>
   <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
-  <depend>social_bt_nodes</depend>
+  <exec_depend>social_bt_nodes</exec_depend>
   <depend>yaml-cpp</depend>
+  <depend>llm_planner_interfaces</depend>
+  <depend>llm_bt_builder</depend>
   
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

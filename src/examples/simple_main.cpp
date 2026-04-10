@@ -13,70 +13,49 @@
 // limitations under the License.
 
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 
-#include "behavior_architecture/behavior_runner.hpp"
+#include "behavior_architecture/config_parser.hpp"
 #include "behavior_architecture/examples/simple_orchestrator.hpp"
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
 
-  // Create shared blackboard for inter-node communication
+  // Accept an optional config file argument; default to the installed simple_config.yaml
+  std::string config_file;
+  if (argc >= 2) {
+    config_file = argv[1];
+  } else {
+    config_file = ament_index_cpp::get_package_share_directory("behavior_architecture") +
+      "/config/simple_config.yaml";
+  }
+
+  behavior_architecture::ActionConfig config;
+  try {
+    config = behavior_architecture::parse_config(config_file);
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(rclcpp::get_logger("main"), "Failed to parse config: %s", e.what());
+    return 1;
+  }
+
   auto blackboard = BT::Blackboard::create();
-  
-  // Create a ROS node and add it to the blackboard
-  auto node = std::make_shared<rclcpp::Node>("bt_node");
+  auto node = std::make_shared<rclcpp::Node>(config.node_name);
   blackboard->set("node", node);
-  
-  // Create BehaviorRunner nodes with all required parameters
-  // Plugin library name (BehaviorTree.CPP will automatically add lib prefix and .so suffix)
-  std::vector<std::string> plugins = {"libsocial_bt_nodes_plugin.so"};
-  
-  auto state1_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
-    blackboard,
-    "state1_runner",
-    "behaviors/examples/state1.xml",
-    plugins,
-    "behavior_architecture",
-    50  // Control cycle period: 50ms
-  );
-  
-  auto state2_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
-    blackboard,
-    "state2_runner",
-    "behaviors/examples/state2.xml",
-    plugins,
-    "behavior_architecture",
-    50  // Control cycle period: 50ms
-  );
+  behavior_architecture::setup_blackboard_from_config(blackboard, config);
 
-  // Create orchestrator
   auto orchestrator = std::make_shared<behavior_architecture::examples::SimpleOrchestrator>(
-    blackboard
-  );
+    blackboard);
 
-  // Configure all nodes
-  state1_runner->trigger_transition(
-    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
-  );
-  state2_runner->trigger_transition(
-    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
-  );
-  orchestrator->trigger_transition(
-    lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE
-  );
+  orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+  orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 
-  // Activate orchestrator (it will coordinate behavior runners via cascade)
-  orchestrator->trigger_transition(
-    lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE
-  );
-
-  // Create executor and add nodes
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
-  executor.add_node(state1_runner->get_node_base_interface());
-  executor.add_node(state2_runner->get_node_base_interface());
+  for (auto & runner : orchestrator->get_runners()) {
+    executor.add_node(runner->get_node_base_interface());
+  }
   executor.add_node(orchestrator->get_node_base_interface());
 
   RCLCPP_INFO(rclcpp::get_logger("main"), "Simple example starting...");

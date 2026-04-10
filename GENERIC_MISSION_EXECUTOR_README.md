@@ -1,8 +1,8 @@
-# Generic Action Executor Update
+# Generic Mission Executor Update
 
 ## What's New
 
-The `behavior_architecture` package now includes a **generic `action_executor`** program that eliminates the need for hardcoded main programs. Instead of creating a new executable for each orchestrator, you can now configure everything through YAML files.
+The `behavior_architecture` package now includes a **generic `mission_executor`** program that eliminates the need for hardcoded main programs. Instead of creating a new executable for each orchestrator, you can now configure everything through YAML files.
 
 ## Key Components
 
@@ -13,12 +13,12 @@ A factory pattern implementation that allows dynamic creation of orchestrator in
 - **Header**: [orchestrator_factory.hpp](include/behavior_architecture/orchestrator_factory.hpp)
 - **Implementation**: [orchestrator_factory.cpp](src/behavior_architecture/orchestrator_factory.cpp)
 
-### 2. Generic Action Executor
+### 2. Generic Mission Executor
 
 A single executable that reads YAML configuration and creates all necessary components:
 
-- **Source**: [action_executor.cpp](src/action_executor.cpp)
-- **Executable**: `action_executor`
+- **Source**: [mission_executor.cpp](src/mission_executor.cpp)
+- **Executable**: `mission_executor`
 
 ### 3. YAML Configuration Files
 
@@ -31,9 +31,9 @@ Example configurations in the `config/` directory:
 
 Convenient launch files for common configurations:
 
-- [action_executor.launch.py](launch/action_executor.launch.py) - Generic launcher with configurable config file
-- [action_executor_restaurant.launch.py](launch/action_executor_restaurant.launch.py) - Restaurant scenario
-- [action_executor_simple.launch.py](launch/action_executor_simple.launch.py) - Simple example
+- [mission_executor.launch.py](launch/mission_executor.launch.py) - Generic launcher with configurable config file
+- [mission_executor_restaurant.launch.py](launch/mission_executor_restaurant.launch.py) - Restaurant scenario
+- [mission_executor_simple.launch.py](launch/mission_executor_simple.launch.py) - Simple example
 
 ## Usage
 
@@ -41,20 +41,20 @@ Convenient launch files for common configurations:
 
 ```bash
 # Using launch files (recommended)
-ros2 launch behavior_architecture action_executor_restaurant.launch.py
-ros2 launch behavior_architecture action_executor_simple.launch.py
+ros2 launch behavior_architecture mission_executor_restaurant.launch.py
+ros2 launch behavior_architecture mission_executor_simple.launch.py
 
 # With custom config
-ros2 launch behavior_architecture action_executor.launch.py config_file:=/path/to/config.yaml
+ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/config.yaml
 
 # Direct execution
-ros2 run behavior_architecture action_executor <config_file.yaml>
+ros2 run behavior_architecture mission_executor <config_file.yaml>
 ```
 
 ### List Available Orchestrators
 
 ```bash
-ros2 run behavior_architecture action_executor
+ros2 run behavior_architecture mission_executor
 # Output shows registered orchestrators:
 #   - restaurant
 #   - simple
@@ -62,7 +62,7 @@ ros2 run behavior_architecture action_executor
 
 ## Benefits Over Hardcoded Mains
 
-| Hardcoded Main | Generic Action Executor |
+| Hardcoded Main | Generic Mission Executor |
 |----------------|------------------------|
 | New C++ file for each action | Single YAML config file |
 | Recompile for every change | Edit config without recompiling |
@@ -72,14 +72,14 @@ ros2 run behavior_architecture action_executor
 
 ## Creating a New Action
 
-See the comprehensive [ACTION_EXECUTOR_GUIDE.md](ACTION_EXECUTOR_GUIDE.md) for detailed instructions.
+See the comprehensive [MISSION_EXECUTOR_GUIDE.md](MISSION_EXECUTOR_GUIDE.md) for detailed instructions.
 
 Quick summary:
 1. Create your orchestrator class inheriting from `BaseOrchestrator`
 2. Register it with the factory in your `.cpp` file
 3. Create a YAML configuration file
 4. Update CMakeLists.txt to include your orchestrator
-5. Build and run with `action_executor`
+5. Build and run with `mission_executor`
 
 ## Example: Adding a New Orchestrator
 
@@ -97,7 +97,7 @@ static OrchestratorRegistrar<MyOrchestrator> my_orch_registrar("my_action");
 ```
 
 ```yaml
-# In config/my_action_config.yaml
+# In config/my_mission_config.yaml
 orchestrator_type: "my_action"
 behaviors:
   - name: "behavior1"
@@ -106,18 +106,18 @@ behaviors:
 
 ```bash
 # Run it
-ros2 run behavior_architecture action_executor config/my_action_config.yaml
+ros2 run behavior_architecture mission_executor config/my_mission_config.yaml
 ```
 
 ## Migration from Old Examples
 
-The original hardcoded examples (`restaurant_example` and `simple_example`) are still available for backward compatibility, but new actions should use the `action_executor` pattern.
+The original hardcoded examples (`restaurant_example` and `simple_example`) are still available for backward compatibility, but new actions should use the `mission_executor` pattern.
 
 To migrate existing code:
 1. Keep your orchestrator implementation as-is
 2. Add factory registration at the top of your `.cpp` file
 3. Create a YAML config file
-4. Use `action_executor` instead of your custom main
+4. Use `mission_executor` instead of your custom main
 
 ## Configuration Schema
 
@@ -166,11 +166,11 @@ behaviors:
 
 ## Dependencies
 
-The action_executor requires `yaml-cpp`, which has been added to the package dependencies.
+The mission_executor requires `yaml-cpp`, which has been added to the package dependencies.
 
 ## Documentation
 
-- **[ACTION_EXECUTOR_GUIDE.md](ACTION_EXECUTOR_GUIDE.md)** - Complete guide for creating new actions
+- **[MISSION_EXECUTOR_GUIDE.md](MISSION_EXECUTOR_GUIDE.md)** - Complete guide for creating new actions
 - **[README.md](README.md)** - Original package README
 
 ## Testing
@@ -183,11 +183,11 @@ colcon build --packages-select behavior_architecture
 source install/setup.bash
 
 # Test help output
-ros2 run behavior_architecture action_executor
+ros2 run behavior_architecture mission_executor
 
 # Test with example configs
-ros2 launch behavior_architecture action_executor_restaurant.launch.py
-ros2 launch behavior_architecture action_executor_simple.launch.py
+ros2 launch behavior_architecture mission_executor_restaurant.launch.py
+ros2 launch behavior_architecture mission_executor_simple.launch.py
 ```
 
 ## Files Modified/Added
@@ -195,17 +195,17 @@ ros2 launch behavior_architecture action_executor_simple.launch.py
 ### New Files
 - `include/behavior_architecture/orchestrator_factory.hpp`
 - `src/behavior_architecture/orchestrator_factory.cpp`
-- `src/action_executor.cpp`
+- `src/mission_executor.cpp`
 - `config/restaurant_config.yaml`
 - `config/simple_config.yaml`
-- `launch/action_executor.launch.py`
-- `launch/action_executor_restaurant.launch.py`
-- `launch/action_executor_simple.launch.py`
-- `ACTION_EXECUTOR_GUIDE.md`
-- `GENERIC_ACTION_EXECUTOR_README.md` (this file)
+- `launch/mission_executor.launch.py`
+- `launch/mission_executor_restaurant.launch.py`
+- `launch/mission_executor_simple.launch.py`
+- `MISSION_EXECUTOR_GUIDE.md`
+- `GENERIC_MISSION_EXECUTOR_README.md` (this file)
 
 ### Modified Files
-- `CMakeLists.txt` - Added yaml-cpp dependency, orchestrator_factory, action_executor target
+- `CMakeLists.txt` - Added yaml-cpp dependency, orchestrator_factory, mission_executor target
 - `package.xml` - Added yaml-cpp dependency
 - `src/examples/restaurant_orchestrator.cpp` - Added factory registration
 - `src/examples/simple_orchestrator.cpp` - Added factory registration

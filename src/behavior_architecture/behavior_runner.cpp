@@ -26,7 +26,7 @@ BehaviorRunner::BehaviorRunner(
   const std::string & package_name,
   int control_cycle_period_ms,
   std::function<void(BT::BehaviorTreeFactory&)> custom_node_registrar)
-  : CascadeLifecycleNode(name),
+  : LifecycleNode(name),
   blackboard_(blackboard),
   status_(BT::NodeStatus::IDLE),
   xml_path_(xml_path),
@@ -84,13 +84,24 @@ BehaviorRunner::get_bt_status() {
   return status_;
 }
 
+void
+BehaviorRunner::set_bt(const std::string & xml)
+{
+  bt_xml_ = xml;
+}
+
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */)
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner (%s) on_activate", get_name());
 
-  std::string pkg_path = ament_index_cpp::get_package_share_directory(package_name_);
-  std::string xml_file = pkg_path + "/" + xml_path_;
+  // Support both absolute paths and package-relative paths
+  std::string xml_file;
+  if (!xml_path_.empty() && xml_path_[0] == '/') {
+    xml_file = xml_path_;
+  } else {
+    xml_file = ament_index_cpp::get_package_share_directory(package_name_) + "/" + xml_path_;
+  }
 
   RCLCPP_INFO(get_logger(), "XML file: %s", xml_file.c_str());
 
@@ -109,9 +120,14 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
 
   RCLCPP_DEBUG(get_logger(), "Getting node from blackboard");
   blackboard_->get("node", node_);
-  RCLCPP_DEBUG(get_logger(), "Creating BT from XML");
-  tree_ = factory.createTreeFromFile(xml_file, blackboard_);
-  RCLCPP_DEBUG(get_logger(), "BT created from XML");
+  RCLCPP_DEBUG(get_logger(), "Creating BT");
+  if (!bt_xml_.empty()) {
+    tree_ = factory.createTreeFromText(bt_xml_, blackboard_);
+    RCLCPP_DEBUG(get_logger(), "BT created from XML string");
+  } else {
+    tree_ = factory.createTreeFromFile(xml_file, blackboard_);
+    RCLCPP_DEBUG(get_logger(), "BT created from XML");
+  }
 
   status_pub_->on_activate();
 

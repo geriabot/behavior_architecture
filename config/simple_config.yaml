@@ -1,20 +1,26 @@
-# Configuration for simple 2-state orchestrator example
-# This demonstrates a basic state machine with two behaviors
+# Fixed-orchestrator configuration for behavior_architecture
+# orchestrator_type: "simple" selects the hard-coded 2-state state machine.
+# Use orchestrator_type: "llm" (see test_goal.yaml) for LLM-guided execution.
+#
+# Usage:
+#   ros2 launch behavior_architecture mission_executor.launch.py \
+#     config_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/simple_config.yaml
 
-# Node name for the ROS blackboard node
+# ── Common fields (shared with LLM config) ────────────────────────────────────
 node_name: "bt_node"
+orchestrator_type: "simple"  # fixed orchestrator registered in OrchestratorFactory
 
-# Type of orchestrator to use (must be registered in OrchestratorFactory)
-orchestrator_type: "simple"
-
-# Package name for resolving relative paths
 package_name: "behavior_architecture"
 
-# Plugin libraries to load (BehaviorTree.CPP plugins)
+# Packages that provide the BT node plugins
+bt_nodes_packages:
+  - "social_bt_nodes"
+
+# BT plugin libraries to load
 plugin_libraries:
   - "libsocial_bt_nodes_plugin.so"
 
-# List of behaviors to create and manage
+# ── Fixed-orchestrator fields (not used in LLM mode) ─────────────────────────
 behaviors:
   # First state behavior
   - name: "state1_runner"

@@ -1,10 +1,10 @@
-# Migration Guide: Updating Packages to Use Generic Action Executor
+# Migration Guide: Updating Packages to Use Generic Mission Executor
 
-This guide explains how to update existing packages that use `behavior_architecture` to work with the new generic `action_executor` system.
+This guide explains how to update existing packages that use `behavior_architecture` to work with the new generic `mission_executor` system.
 
 ## Overview
 
-The generic action_executor allows packages to use a single executable configured via YAML files instead of maintaining separate hardcoded main programs. This reduces code duplication and makes behavior orchestration more maintainable.
+The generic mission_executor allows packages to use a single executable configured via YAML files instead of maintaining separate hardcoded main programs. This reduces code duplication and makes behavior orchestration more maintainable.
 
 ## Migration Steps
 
@@ -33,7 +33,7 @@ static behavior_architecture::OrchestratorRegistrar<DummyRobotOrchestrator>
 Update `CMakeLists.txt` to build your orchestrator as a library:
 
 ```cmake
-# Create orchestrator library (for use with action_executor)
+# Create orchestrator library (for use with mission_executor)
 add_library(${PROJECT_NAME}_orchestrator SHARED
   src/your_orchestrator.cpp
 )
@@ -133,7 +133,7 @@ install(DIRECTORY
 
 ### 6. Create Launch File
 
-Create `launch/your_action_executor.launch.py`:
+Create `launch/your_mission_executor.launch.py`:
 
 ```python
 from launch import LaunchDescription
@@ -150,17 +150,17 @@ def generate_launch_description():
         'your_config.yaml'
     ])
     
-    # Create the action executor node
-    action_executor = Node(
+    # Create the mission executor node
+    mission_executor = Node(
         package='behavior_architecture',
-        executable='action_executor',
+        executable='mission_executor',
         output='screen',
         emulate_tty=True,
         arguments=[config_file]
     )
     
     return LaunchDescription([
-        action_executor
+        mission_executor
     ])
 ```
 
@@ -189,8 +189,8 @@ The `dummy_robot` package has been fully migrated. Key files:
 - **Config:** [config/dummy_robot_config.yaml](../../dummy_robot/config/dummy_robot_config.yaml)
   - Specifies orchestrator type, libraries, and behaviors
 
-- **Launch:** [launch/dummy_robot_action_executor.launch.py](../../dummy_robot/launch/dummy_robot_action_executor.launch.py)
-  - Uses generic action_executor
+- **Launch:** [launch/dummy_robot_mission_executor.launch.py](../../dummy_robot/launch/dummy_robot_mission_executor.launch.py)
+  - Uses generic mission_executor
 
 - **CMakeLists.txt:** Updated to:
   - Build orchestrator as shared library
@@ -207,26 +207,26 @@ The `dummy_robot` package has been fully migrated. Key files:
 
 2. **Verify orchestrator registration:**
    ```bash
-   ros2 run behavior_architecture action_executor
+   ros2 run behavior_architecture mission_executor
    ```
    You should see your orchestrator type listed.
 
-3. **Run your action executor:**
+3. **Run your mission executor:**
    ```bash
-   ros2 launch your_package your_action_executor.launch.py
+   ros2 launch your_package your_mission_executor.launch.py
    ```
 
 ## Benefits of Migration
 
 1. **Less Code:** No need for custom main() programs
 2. **Easier Configuration:** Change behaviors via YAML without recompiling
-3. **Reusability:** Same action_executor works for all orchestrators
+3. **Reusability:** Same mission_executor works for all orchestrators
 4. **Maintainability:** Single point of implementation for executor logic
 5. **Flexibility:** Easy to add new behaviors or modify existing ones
 
 ## Backward Compatibility
 
-Your original executable (e.g., `dummy_robot_main`) can be kept for backward compatibility. The new action_executor approach is additive, not replacing existing functionality.
+Your original executable (e.g., `dummy_robot_main`) can be kept for backward compatibility. The new mission_executor approach is additive, not replacing existing functionality.
 
 ## Troubleshooting
 
@@ -248,5 +248,5 @@ Your original executable (e.g., `dummy_robot_main`) can be kept for backward com
 
 ## Additional Resources
 
-- [ACTION_EXECUTOR_GUIDE.md](ACTION_EXECUTOR_GUIDE.md) - Detailed action_executor usage
-- [GENERIC_ACTION_EXECUTOR_README.md](../GENERIC_ACTION_EXECUTOR_README.md) - Overview and quick start
+- [MISSION_EXECUTOR_GUIDE.md](MISSION_EXECUTOR_GUIDE.md) - Detailed mission_executor usage
+- [GENERIC_MISSION_EXECUTOR_README.md](../GENERIC_MISSION_EXECUTOR_README.md) - Overview and quick start

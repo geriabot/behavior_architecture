@@ -87,24 +87,24 @@ RestaurantOrchestrator::go_to_state(int state)
   switch (state_) {
     case RestaurantState::INIT:
       RCLCPP_INFO(get_logger(), "State: INIT");
-      clear_activation();
+      deactivate_all_runners();
       break;
 
     case RestaurantState::APPROACH_CUSTOMER:
       RCLCPP_INFO(get_logger(), "State: APPROACH_CUSTOMER - Activating follow behavior");
-      clear_activation();
-      add_activation("follow_behavior");
+      deactivate_all_runners();
+      activate_runner("follow_behavior");
       break;
 
     case RestaurantState::COLLECT_ORDER:
       RCLCPP_INFO(get_logger(), "State: COLLECT_ORDER - Activating order collection");
-      remove_activation("follow_behavior");
-      add_activation("collect_order");
+      deactivate_runner("follow_behavior");
+      activate_runner("collect_order");
       break;
 
     case RestaurantState::COMPLETE:
       RCLCPP_INFO(get_logger(), "State: COMPLETE - Cleaning up");
-      clear_activation();
+      deactivate_all_runners();
       break;
 
     default:

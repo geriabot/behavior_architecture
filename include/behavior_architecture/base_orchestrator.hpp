@@ -15,13 +15,18 @@
 #ifndef BEHAVIOR_ARCHITECTURE__BASE_ORCHESTRATOR_HPP_
 #define BEHAVIOR_ARCHITECTURE__BASE_ORCHESTRATOR_HPP_
 
-#include <string>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
+#include <vector>
 
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "behaviortree_cpp/behavior_tree.h"
+#include "behavior_architecture/behavior_config.hpp"
+#include "behavior_architecture/behavior_runner.hpp"
 
 namespace behavior_architecture
 {
@@ -43,7 +48,7 @@ using std::placeholders::_1;
  * 3. Override go_to_state() to handle state transitions
  * 4. Use add_activation()/remove_activation()/clear_activation() to control BT nodes
  */
-class BaseOrchestrator : public rclcpp_cascade_lifecycle::CascadeLifecycleNode
+class BaseOrchestrator : public rclcpp_lifecycle::LifecycleNode
 {
 public:
   /**
@@ -56,6 +61,9 @@ public:
     BT::Blackboard::Ptr blackboard);
 
   virtual ~BaseOrchestrator() = default;
+
+  void register_runner(const std::string & name, BehaviorRunner::SharedPtr runner);
+  std::vector<BehaviorRunner::SharedPtr> get_runners() const;
 
 protected:
   /**
@@ -78,6 +86,10 @@ protected:
    */
   virtual void go_to_state(int state) = 0;
 
+  void activate_runner(const std::string & name);
+  void deactivate_runner(const std::string & name);
+  void deactivate_all_runners();
+
   /**
    * @brief Check if the currently active behavior tree has finished
    * @return true if status changed from last check, false otherwise
@@ -91,6 +103,9 @@ protected:
   void status_callback(std_msgs::msg::String::UniquePtr msg);
 
   // Lifecycle callbacks
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_configure(const rclcpp_lifecycle::State & previous_state) override;
+
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
   on_activate(const rclcpp_lifecycle::State & previous_state) override;
 
@@ -106,6 +121,9 @@ protected:
   std::string status_received_;
   
   int control_cycle_rate_ms_;  // Control cycle period in milliseconds
+
+  std::map<std::string, BehaviorRunner::SharedPtr> runners_;
+  std::set<std::string> active_runners_;
 
 private:
   bool started_;

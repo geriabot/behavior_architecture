@@ -21,21 +21,21 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Launch the action executor with the restaurant configuration."""
+    """Launch the mission executor with the simple configuration."""
     
     # Get package directory
     pkg_dir = get_package_share_directory('behavior_architecture')
-    config_file = os.path.join(pkg_dir, 'config', 'restaurant_config.yaml')
+    config_file = os.path.join(pkg_dir, 'config', 'simple_config.yaml')
     
-    # Action executor node
-    action_executor_node = Node(
+    # Mission executor node
+    mission_executor_node = Node(
         package='behavior_architecture',
-        executable='action_executor',
+        executable='mission_executor',
         output='screen',
         emulate_tty=True,
         arguments=[config_file]
     )
 
     return LaunchDescription([
-        action_executor_node
+        mission_executor_node
     ])

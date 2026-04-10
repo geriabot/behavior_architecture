@@ -1,22 +1,26 @@
-# Configuration for restaurant waiter scenario
-# This configuration creates a restaurant service that follows a customer
-# and collects their order
+# Fixed-orchestrator configuration for behavior_architecture
+# orchestrator_type: "restaurant" selects the hard-coded restaurant state machine.
+# Use orchestrator_type: "llm" (see test_goal.yaml) for LLM-guided execution.
+#
+# Usage:
+#   ros2 launch behavior_architecture mission_executor.launch.py \
+#     config_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/restaurant_config.yaml
 
-# Node name for the ROS blackboard node
+# ── Common fields (shared with LLM config) ────────────────────────────────────
 node_name: "bt_node"
+orchestrator_type: "restaurant"  # fixed orchestrator registered in OrchestratorFactory
 
-# Type of orchestrator to use (must be registered in OrchestratorFactory)
-orchestrator_type: "restaurant"
-
-# Package name for resolving relative paths
 package_name: "behavior_architecture"
 
-# Plugin libraries to load (BehaviorTree.CPP plugins)
-# These provide custom behavior tree nodes
+# Packages that provide the BT node plugins
+bt_nodes_packages:
+  - "social_bt_nodes"
+
+# BT plugin libraries to load
 plugin_libraries:
   - "libsocial_bt_nodes_plugin.so"
 
-# List of behaviors to create and manage
+# ── Fixed-orchestrator fields (not used in LLM mode) ─────────────────────────
 behaviors:
   # Follow behavior - tracks and follows a person
   - name: "follow_behavior"

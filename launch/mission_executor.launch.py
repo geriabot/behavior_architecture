@@ -17,25 +17,37 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Launch the action executor with the simple configuration."""
+    """Launch the generic mission executor with a YAML configuration file."""
     
     # Get package directory
     pkg_dir = get_package_share_directory('behavior_architecture')
-    config_file = os.path.join(pkg_dir, 'config', 'simple_config.yaml')
     
-    # Action executor node
-    action_executor_node = Node(
+    # Default config file
+    default_config_file = os.path.join(pkg_dir, 'config', 'restaurant_config.yaml')
+    
+    # Declare launch arguments
+    config_file_arg = DeclareLaunchArgument(
+        'config_file',
+        default_value=default_config_file,
+        description='Path to the YAML configuration file for the mission executor'
+    )
+    
+    # Mission executor node
+    mission_executor_node = Node(
         package='behavior_architecture',
-        executable='action_executor',
+        executable='mission_executor',
         output='screen',
         emulate_tty=True,
-        arguments=[config_file]
+        arguments=[LaunchConfiguration('config_file')]
     )
 
     return LaunchDescription([
-        action_executor_node
+        config_file_arg,
+        mission_executor_node
     ])
