@@ -186,7 +186,7 @@ The `dummy_robot` package has been fully migrated. Key files:
 - **BT Plugin:** [src/bt_nodes/bt_plugins.cpp](../../dummy_robot/src/bt_nodes/bt_plugins.cpp)
   - Registers LogMessage custom node
 
-- **Config:** [config/dummy_robot_config.yaml](../../dummy_robot/config/dummy_robot_config.yaml)
+- **Config:** [config/dummy_mission.yaml](../../dummy_robot/config/dummy_mission.yaml)
   - Specifies orchestrator type, libraries, and behaviors
 
 - **Launch:** [launch/dummy_robot_mission_executor.launch.py](../../dummy_robot/launch/dummy_robot_mission_executor.launch.py)

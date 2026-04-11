@@ -42,6 +42,7 @@ struct ActionConfig
   std::vector<std::string> bt_nodes_packages;
   int bt_control_period_ms = 50;
   double bt_timeout_sec = 30.0;
+  std::vector<std::string> skills;  // capabilities available to the robot
 };
 
 /**
@@ -90,6 +91,11 @@ inline ActionConfig parse_config(const std::string & config_file)
       if (yaml["bt_timeout_sec"]) {
         config.bt_timeout_sec = yaml["bt_timeout_sec"].as<double>();
       }
+      if (yaml["skills"]) {
+        for (const auto & s : yaml["skills"]) {
+          config.skills.push_back(s.as<std::string>());
+        }
+      }
     } else {
       if (!yaml["behaviors"]) {
         throw std::runtime_error("Missing required field: behaviors");
@@ -134,6 +140,7 @@ inline void setup_blackboard_from_config(
     blackboard->set<std::vector<std::string>>("llm_bt_nodes_packages", config.bt_nodes_packages);
     blackboard->set<int>("llm_control_period_ms", config.bt_control_period_ms);
     blackboard->set<double>("llm_timeout_sec", config.bt_timeout_sec);
+    blackboard->set<std::vector<std::string>>("llm_skills", config.skills);
   } else {
     blackboard->set<std::vector<BehaviorConfig>>("behaviors_config", config.behaviors);
     blackboard->set<std::vector<std::string>>("plugin_libraries", config.plugin_libraries);

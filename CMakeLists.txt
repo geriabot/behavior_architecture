@@ -117,11 +117,11 @@ install(TARGETS llm_plan_executor
 )
 
 # Test client for llm_plan_executor
-add_executable(test_start_goal src/test_start_goal.cpp)
-target_link_libraries(test_start_goal yaml-cpp)
-ament_target_dependencies(test_start_goal rclcpp llm_planner_interfaces)
+add_executable(test_start_mission src/test_start_mission.cpp)
+target_link_libraries(test_start_mission yaml-cpp)
+ament_target_dependencies(test_start_mission rclcpp llm_planner_interfaces)
 
-install(TARGETS test_start_goal
+install(TARGETS test_start_mission
   DESTINATION lib/${PROJECT_NAME}
 )
 

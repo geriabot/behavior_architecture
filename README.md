@@ -479,6 +479,56 @@ ros2 run behavior_architecture mission_executor
 
 See included examples for complete working configurations.
 
+## Orchestrator Modes
+
+There are two orchestrator modes, and **how you start a mission depends on which one you use**.
+
+### Fixed Orchestrators
+
+`SimpleOrchestrator`, `RestaurantOrchestrator`, and any custom orchestrator built from `BaseOrchestrator` start **automatically** when the lifecycle node transitions to ACTIVE. No external trigger is needed — the FSM begins executing its first state immediately in `on_activate()`.
+
+```
+ros2 launch behavior_architecture mission_executor_simple.launch.py
+# → mission starts by itself
+```
+
+### LLM Orchestrator (`LLMPlanOrchestrator`)
+
+`LLMPlanOrchestrator` exposes a `/start_mission` ROS 2 service and **waits** after activation. The FSM does not start until someone calls that service with the goal, context, and robot skills. This is intentional: the mission is dynamic and must be provided at runtime.
+
+To trigger a mission in LLM mode you have two options:
+
+**Option 1 — `test_start_mission` (provided helper)**
+
+An ephemeral node that reads a YAML file and calls `/start_mission` once, then exits:
+
+```bash
+ros2 run behavior_architecture test_start_mission \
+  --ros-args \
+  -p goal_file:=/path/to/llm_config.yaml \
+  -p skills_file:=/path/to/skills.yaml
+```
+
+The launch files (`llm_dummy_demo.launch.py`, `dummy_robot_llm.launch.py`) start this node automatically after a 3-second delay so `mission_executor` is ready.
+
+**Option 2 — call the service directly**
+
+```bash
+ros2 service call /start_mission llm_planner_interfaces/srv/StartMission \
+  "{goal: 'Greet the visitor and guide them to room 3',
+    context: 'Hospital reception area',
+    skills: ['Navigate to a location', 'Speak using text-to-speech']}"
+```
+
+In a real deployment, another node (e.g. an HRI component) would call `/start_mission` when appropriate, replacing `test_start_mission` entirely.
+
+#### Summary
+
+| Orchestrator type | Mission starts… | Trigger needed? |
+|---|---|---|
+| Fixed (`Simple`, `Restaurant`, custom) | Automatically on `ACTIVATE` | No |
+| LLM (`LLMPlanOrchestrator`) | On `/start_mission` service call | Yes |
+
 ## Included Examples
 
 ### Simple Example

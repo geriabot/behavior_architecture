@@ -53,6 +53,10 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
     capabilities_yaml_ = blackboard_->get<std::string>("llm_capabilities_yaml");
   } catch (...) {}
 
+  try {
+    skills_ = blackboard_->get<std::vector<std::string>>("llm_skills");
+  } catch (...) {}
+
   // Build capabilities by concatenating node_descriptions of each bt_nodes_package.
   if (capabilities_yaml_.empty()) {
     std::vector<std::string> bt_nodes_pkgs;
@@ -87,13 +91,13 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
   replan_client_ = create_client<llm_planner_interfaces::srv::ReplanTask>("replan_task");
   generate_bt_client_ = create_client<llm_bt_builder::srv::GenerateBT>("generate_bt");
 
-  start_goal_srv_ = create_service<llm_planner_interfaces::srv::StartGoal>(
-    "start_goal",
+  start_mission_srv_ = create_service<llm_planner_interfaces::srv::StartMission>(
+    "start_mission",
     [this](
-      const llm_planner_interfaces::srv::StartGoal::Request::SharedPtr req,
-      llm_planner_interfaces::srv::StartGoal::Response::SharedPtr resp)
+      const llm_planner_interfaces::srv::StartMission::Request::SharedPtr req,
+      llm_planner_interfaces::srv::StartMission::Response::SharedPtr resp)
     {
-      handle_start_goal(req, resp);
+      handle_start_mission(req, resp);
     });
 
   // Status publisher (lifecycle-managed: activated/deactivated in lifecycle callbacks).
@@ -143,12 +147,13 @@ LLMPlanOrchestrator::on_deactivate(const rclcpp_lifecycle::State & previous_stat
   return BaseOrchestrator::on_deactivate(previous_state);
 }
 
-// ───────────────────────────────────────────────────────────────────────────────// StartGoal service handler
+// ─────────────────────────────────────────────────────────────────────────────
+// StartMission service handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-void LLMPlanOrchestrator::handle_start_goal(
-  const llm_planner_interfaces::srv::StartGoal::Request::SharedPtr req,
-  llm_planner_interfaces::srv::StartGoal::Response::SharedPtr resp)
+void LLMPlanOrchestrator::handle_start_mission(
+  const llm_planner_interfaces::srv::StartMission::Request::SharedPtr req,
+  llm_planner_interfaces::srv::StartMission::Response::SharedPtr resp)
 {
   if (state_ != State::IDLE && state_ != State::SUCCESS && state_ != State::FAILED) {
     resp->accepted = false;
@@ -159,6 +164,9 @@ void LLMPlanOrchestrator::handle_start_goal(
 
   goal_ = req->goal;
   context_ = req->context;
+  if (!req->skills.empty()) {
+    skills_ = std::vector<std::string>(req->skills.begin(), req->skills.end());
+  }
   steps_.clear();
   current_step_ = 0;
   replan_count_ = 0;
@@ -369,6 +377,7 @@ void LLMPlanOrchestrator::request_plan()
   auto request = std::make_shared<llm_planner_interfaces::srv::PlanTask::Request>();
   request->goal = goal_;
   request->context = context_;
+  request->skills = skills_;
 
   RCLCPP_INFO(get_logger(), "Requesting plan for goal: '%s'", goal_.c_str());
   plan_future_ = plan_client_->async_send_request(request);
@@ -389,6 +398,7 @@ void LLMPlanOrchestrator::request_replan()
   request->failure_reason = last_failure_reason_;
   step_failure_history_.push_back(last_failure_reason_);  // record before sending
   request->previous_failures = step_failure_history_;
+  request->skills = skills_;
 
   RCLCPP_INFO(get_logger(), "Requesting replan (attempt %d) for step %zu: %s",
     replan_count_, current_step_, last_failure_reason_.c_str());

@@ -25,7 +25,7 @@
 
 #include "llm_planner_interfaces/srv/plan_task.hpp"
 #include "llm_planner_interfaces/srv/replan_task.hpp"
-#include "llm_planner_interfaces/srv/start_goal.hpp"
+#include "llm_planner_interfaces/srv/start_mission.hpp"
 #include "llm_bt_builder/srv/generate_bt.hpp"
 
 #include "behavior_architecture/base_orchestrator.hpp"
@@ -70,6 +70,7 @@ private:
   // ── Goal context ──────────────────────────────────────────────────────────
   std::string goal_;
   std::string context_;
+  std::vector<std::string> skills_;  // capabilities available to the robot
 
   // ── Plan data ─────────────────────────────────────────────────────────────
   struct Step
@@ -92,7 +93,7 @@ private:
   bool tree_loaded_{false};
 
   // ── ROS 2 interfaces ──────────────────────────────────────────────────────
-  rclcpp::Service<llm_planner_interfaces::srv::StartGoal>::SharedPtr start_goal_srv_;
+  rclcpp::Service<llm_planner_interfaces::srv::StartMission>::SharedPtr start_mission_srv_;
 
   rclcpp::Client<llm_planner_interfaces::srv::PlanTask>::SharedPtr plan_client_;
   rclcpp::Client<llm_planner_interfaces::srv::ReplanTask>::SharedPtr replan_client_;
@@ -118,9 +119,9 @@ private:
   // ── Callbacks & helpers ───────────────────────────────────────────────────
   void control_cycle();
 
-  void handle_start_goal(
-    const llm_planner_interfaces::srv::StartGoal::Request::SharedPtr req,
-    llm_planner_interfaces::srv::StartGoal::Response::SharedPtr resp);
+  void handle_start_mission(
+    const llm_planner_interfaces::srv::StartMission::Request::SharedPtr req,
+    llm_planner_interfaces::srv::StartMission::Response::SharedPtr resp);
 
   void request_plan();
   void request_replan();

@@ -36,6 +36,7 @@ def launch_setup(context, *args, **kwargs):
     running externally (false).
     """
     config_file     = LaunchConfiguration('config_file').perform(context)
+    skills_file     = LaunchConfiguration('skills_file').perform(context)
     launch_llm_nodes = LaunchConfiguration('launch_llm_nodes').perform(context).lower() == 'true'
 
     with open(config_file, 'r') as f:
@@ -105,12 +106,13 @@ def launch_setup(context, *args, **kwargs):
         period=3.0,
         actions=[Node(
             package='behavior_architecture',
-            executable='test_start_goal',
-            name='test_start_goal',
+            executable='test_start_mission',
+            name='test_start_mission',
             output='screen',
             emulate_tty=True,
             parameters=[{
                 'goal_file': config_file,
+                'skills_file': skills_file,
             }],
         )],
     ))
@@ -125,7 +127,7 @@ def generate_launch_description():
       1. llm_planner_node    — generates and replans task YAML via LLM        (optional)
       2. llm_bt_agent_node   — generates BT XML from a step description via LLM (optional)
       3. llm_plan_executor   — orchestrates planning, BT generation, and BT execution
-      4. test_start_goal     — sends the initial goal (after a 3 s delay)
+      4. test_start_mission  — sends the initial mission (after a 3 s delay)
 
     All configuration (LLM provider/model/key, BT parameters, goal, context)
     is loaded from a single YAML file using the unified format shared with the
@@ -136,6 +138,7 @@ def generate_launch_description():
     """
     pkg_dir = get_package_share_directory('behavior_architecture')
     default_config = os.path.join(pkg_dir, 'config', 'llm_config.yaml')
+    default_skills = os.path.join(pkg_dir, 'config', 'skills.yaml')
 
     config_file_arg = DeclareLaunchArgument(
         'config_file',
@@ -144,6 +147,12 @@ def generate_launch_description():
             'Path to the unified YAML config file '
             '(orchestrator_type must be "llm")'
         ),
+    )
+
+    skills_file_arg = DeclareLaunchArgument(
+        'skills_file',
+        default_value=default_skills,
+        description='Path to the YAML file listing the robot skills (skills: [...]).',
     )
 
     launch_llm_nodes_arg = DeclareLaunchArgument(
@@ -157,6 +166,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         config_file_arg,
+        skills_file_arg,
         launch_llm_nodes_arg,
         OpaqueFunction(function=launch_setup),
     ])
