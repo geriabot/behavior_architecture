@@ -38,6 +38,7 @@ def launch_setup(context, *args, **kwargs):
     config_file     = LaunchConfiguration('config_file').perform(context)
     skills_file     = LaunchConfiguration('skills_file').perform(context)
     launch_llm_nodes = LaunchConfiguration('launch_llm_nodes').perform(context).lower() == 'true'
+    save_exec = LaunchConfiguration('save_exec').perform(context).lower() == 'true'
 
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
@@ -92,13 +93,16 @@ def launch_setup(context, *args, **kwargs):
         ))
 
     # ── 3. Action Executor (handles both fixed and LLM orchestrators) ─────────
+    executor_args = [config_file]
+    if save_exec:
+        executor_args.append('--save-exec')
     nodes.append(Node(
         package='behavior_architecture',
         executable='action_executor',
         name='action_executor',
         output='screen',
         emulate_tty=True,
-        arguments=[config_file],
+        arguments=executor_args,
     ))
 
     # ── 4. Goal sender (reads goal + context from the same config file) ───────
@@ -164,9 +168,19 @@ def generate_launch_description():
         ),
     )
 
+    save_exec_arg = DeclareLaunchArgument(
+        'save_exec',
+        default_value='false',
+        description=(
+            'Save generated BT XMLs to exec/<mission_name>/<timestamp>/. '
+            'Set to "true" to enable execution logging.'
+        ),
+    )
+
     return LaunchDescription([
         config_file_arg,
         skills_file_arg,
         launch_llm_nodes_arg,
+        save_exec_arg,
         OpaqueFunction(function=launch_setup),
     ])

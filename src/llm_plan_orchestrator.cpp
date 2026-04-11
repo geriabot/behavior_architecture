@@ -15,7 +15,10 @@
 #include "behavior_architecture/llm_plan_orchestrator.hpp"
 
 #include <chrono>
+#include <ctime>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
@@ -55,6 +58,13 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
 
   try {
     skills_ = blackboard_->get<std::vector<std::string>>("llm_skills");
+  } catch (...) {}
+
+  try {
+    save_exec_ = blackboard_->get<bool>("llm_save_exec");
+  } catch (...) {}
+  try {
+    exec_base_dir_ = blackboard_->get<std::string>("llm_exec_dir");
   } catch (...) {}
 
   // Build capabilities by concatenating node_descriptions of each bt_nodes_package.
@@ -175,6 +185,16 @@ void LLMPlanOrchestrator::handle_start_mission(
   step_failure_history_.clear();
   tree_loaded_ = false;
 
+  if (save_exec_) {
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+    exec_run_dir_ = std::filesystem::path(exec_base_dir_) / mission_name_ / oss.str();
+    std::filesystem::create_directories(exec_run_dir_);
+    RCLCPP_INFO(get_logger(), "Exec save dir: %s", exec_run_dir_.c_str());
+  }
+
   resp->accepted = true;
   resp->message = "Goal accepted, planning…";
   RCLCPP_INFO(get_logger(), "Goal accepted: '%s'", goal_.c_str());
@@ -223,6 +243,11 @@ void LLMPlanOrchestrator::control_cycle()
         break;
       }
 
+      if (save_exec_) {
+        current_plan_dir_ = exec_run_dir_ / "plan";
+        std::filesystem::create_directories(current_plan_dir_);
+      }
+
       request_generate_bt(steps_[current_step_].objective_yaml);
       break;
     }
@@ -250,6 +275,10 @@ void LLMPlanOrchestrator::control_cycle()
       }
 
       RCLCPP_INFO(get_logger(), "BT XML received for step %zu, loading tree", current_step_);
+
+      if (save_exec_) {
+        save_bt_xml(result->bt_xml, current_step_);
+      }
 
       try {
         auto it = runners_.find("llm_bt_runner");
@@ -357,6 +386,11 @@ void LLMPlanOrchestrator::control_cycle()
         publish_status("REPLAN_EMPTY");
         transition_to(State::FAILED);
         break;
+      }
+
+      if (save_exec_) {
+        current_plan_dir_ = exec_run_dir_ / ("replan_" + std::to_string(replan_count_));
+        std::filesystem::create_directories(current_plan_dir_);
       }
 
       request_generate_bt(steps_[current_step_].objective_yaml);
@@ -523,6 +557,19 @@ std::string LLMPlanOrchestrator::load_file(const std::string & path)
   std::ostringstream ss;
   ss << f.rdbuf();
   return ss.str();
+}
+
+void LLMPlanOrchestrator::save_bt_xml(const std::string & bt_xml, std::size_t step)
+{
+  if (current_plan_dir_.empty()) {return;}
+  const auto path = current_plan_dir_ / ("step_" + std::to_string(step) + ".xml");
+  std::ofstream f(path);
+  if (!f.is_open()) {
+    RCLCPP_WARN(get_logger(), "Could not save BT XML to: %s", path.c_str());
+    return;
+  }
+  f << bt_xml;
+  RCLCPP_INFO(get_logger(), "Saved BT XML: %s", path.c_str());
 }
 
 void LLMPlanOrchestrator::publish_status(const std::string & msg)

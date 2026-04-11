@@ -15,6 +15,7 @@
 #ifndef BEHAVIOR_ARCHITECTURE__LLM_PLAN_ORCHESTRATOR_HPP_
 #define BEHAVIOR_ARCHITECTURE__LLM_PLAN_ORCHESTRATOR_HPP_
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -117,6 +118,12 @@ private:
   double bt_timeout_sec_;
   rclcpp::Time step_start_time_;
 
+  // ── Execution saving ──────────────────────────────────────────────────────
+  bool save_exec_{false};
+  std::string exec_base_dir_{"exec"};
+  std::filesystem::path exec_run_dir_;
+  std::filesystem::path current_plan_dir_;
+
   // ── Callbacks & helpers ───────────────────────────────────────────────────
   void control_cycle();
 
@@ -130,6 +137,7 @@ private:
 
   std::vector<Step> parse_plan(const std::string & yaml_str);
   std::string load_file(const std::string & path);
+  void save_bt_xml(const std::string & bt_xml, std::size_t step);
 
   /// Collect a descriptive failure reason from the BT tree and blackboard.
   /// Must be called BEFORE haltTree() so node statuses are still valid.

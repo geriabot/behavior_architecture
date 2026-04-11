@@ -122,6 +122,18 @@ int main(int argc, char * argv[])
   }
   
   std::string config_file = argv[1];
+
+  // ── Optional flags: --save-exec [--exec-dir PATH] ────────────────────────
+  bool save_exec_flag = false;
+  std::string exec_dir_flag;
+  for (int i = 2; i < argc; ++i) {
+    if (std::string(argv[i]) == "--save-exec") {
+      save_exec_flag = true;
+    } else if (std::string(argv[i]) == "--exec-dir" && i + 1 < argc) {
+      exec_dir_flag = argv[++i];
+    }
+  }
+
   RCLCPP_INFO(
     rclcpp::get_logger("mission_executor"),
     "Loading configuration from: %s", config_file.c_str());
@@ -171,6 +183,10 @@ int main(int argc, char * argv[])
   // Create a ROS node and add it to the blackboard
   auto node = std::make_shared<rclcpp::Node>(config.node_name);
   blackboard->set("node", node);
+
+  // Apply CLI overrides
+  if (save_exec_flag) {config.save_exec = true;}
+  if (!exec_dir_flag.empty()) {config.exec_dir = exec_dir_flag;}
 
   // Store config in blackboard so orchestrator on_configure can create runners
   setup_blackboard_from_config(blackboard, config);
