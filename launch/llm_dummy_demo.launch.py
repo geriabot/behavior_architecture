@@ -110,8 +110,8 @@ def launch_setup(context, *args, **kwargs):
         period=3.0,
         actions=[Node(
             package='behavior_architecture',
-            executable='test_start_mission',
-            name='test_start_mission',
+            executable='start_mission',
+            name='start_mission',
             output='screen',
             emulate_tty=True,
             parameters=[{

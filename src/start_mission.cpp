@@ -15,13 +15,13 @@
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
-#include "llm_planner_interfaces/srv/start_goal.hpp"
+#include "llm_planner_interfaces/srv/start_mission.hpp"
 #include "yaml-cpp/yaml.h"
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto node = rclcpp::Node::make_shared("test_start_goal");
+  auto node = rclcpp::Node::make_shared("start_mission");
 
   // Path to the YAML file with the goal definition
   node->declare_parameter("goal_file", std::string(""));
@@ -34,7 +34,7 @@ int main(int argc, char ** argv)
   if (goal_file.empty()) {
     RCLCPP_ERROR(node->get_logger(), "Parameter 'goal_file' is required");
     RCLCPP_ERROR(node->get_logger(),
-      "Usage: ros2 run behavior_architecture test_start_goal "
+      "Usage: ros2 run behavior_architecture start_mission "
       "--ros-args -p goal_file:=/path/to/goal.yaml [-p skills_file:=/path/to/skills.yaml]");
     rclcpp::shutdown();
     return 1;
@@ -84,16 +84,16 @@ int main(int argc, char ** argv)
     RCLCPP_INFO(node->get_logger(), "Loaded %zu skill(s) from goal_file", skills.size());
   }
 
-  auto client = node->create_client<llm_planner_interfaces::srv::StartGoal>("start_goal");
+  auto client = node->create_client<llm_planner_interfaces::srv::StartMission>("start_mission");
 
-  RCLCPP_INFO(node->get_logger(), "Waiting for /start_goal service...");
+  RCLCPP_INFO(node->get_logger(), "Waiting for /start_mission service...");
   if (!client->wait_for_service(std::chrono::seconds(10))) {
     RCLCPP_ERROR(node->get_logger(), "Service not available after 10s");
     rclcpp::shutdown();
     return 1;
   }
 
-  auto request = std::make_shared<llm_planner_interfaces::srv::StartGoal::Request>();
+  auto request = std::make_shared<llm_planner_interfaces::srv::StartMission::Request>();
   request->goal    = goal;
   request->context = context;
   request->skills  = skills;
