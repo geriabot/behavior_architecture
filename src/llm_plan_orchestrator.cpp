@@ -164,6 +164,7 @@ void LLMPlanOrchestrator::handle_start_mission(
 
   goal_ = req->goal;
   context_ = req->context;
+  mission_name_ = req->mission_name;
   if (!req->skills.empty()) {
     skills_ = std::vector<std::string>(req->skills.begin(), req->skills.end());
   }
@@ -378,6 +379,7 @@ void LLMPlanOrchestrator::request_plan()
   request->goal = goal_;
   request->context = context_;
   request->skills = skills_;
+  request->mission_name = mission_name_;
 
   RCLCPP_INFO(get_logger(), "Requesting plan for goal: '%s'", goal_.c_str());
   plan_future_ = plan_client_->async_send_request(request);
@@ -399,6 +401,7 @@ void LLMPlanOrchestrator::request_replan()
   step_failure_history_.push_back(last_failure_reason_);  // record before sending
   request->previous_failures = step_failure_history_;
   request->skills = skills_;
+  request->mission_name = mission_name_;
 
   RCLCPP_INFO(get_logger(), "Requesting replan (attempt %d) for step %zu: %s",
     replan_count_, current_step_, last_failure_reason_.c_str());

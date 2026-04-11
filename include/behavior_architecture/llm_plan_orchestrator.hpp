@@ -71,6 +71,7 @@ private:
   std::string goal_;
   std::string context_;
   std::vector<std::string> skills_;  // capabilities available to the robot
+  std::string mission_name_;         // optional identifier for saved plan filenames
 
   // ── Plan data ─────────────────────────────────────────────────────────────
   struct Step

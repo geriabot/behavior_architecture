@@ -36,6 +36,7 @@ bt_builder_llm_api_key: ""
 
 # ── Goal definition (sent to the LLM planner at start-up) ────────────────────
 # Skills are defined in skills.yaml and passed via the 'skills_file' launch arg.
+mission_name: "restaurant_greeter"
 goal: "Greet the customer and take their order"
 context: |
   NAO robot acting as a waiter in a restaurant.
