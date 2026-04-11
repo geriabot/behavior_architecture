@@ -25,6 +25,7 @@
 #include "std_msgs/msg/string.hpp"
 #include "behaviortree_cpp/behavior_tree.h"
 #include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp/loggers/bt_cout_logger.h"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 namespace behavior_architecture
@@ -106,6 +107,7 @@ private:
   BT::Blackboard::Ptr blackboard_;
   std::string bt_xml_;  // if non-empty, on_activate uses createTreeFromText instead of file
   BT::Tree tree_;
+  std::unique_ptr<BT::StdCoutLogger> cout_logger_;
   BT::NodeStatus status_;
   
   std::string xml_path_;

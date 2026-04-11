@@ -129,6 +129,8 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
     RCLCPP_DEBUG(get_logger(), "BT created from XML");
   }
 
+  cout_logger_ = std::make_unique<BT::StdCoutLogger>(tree_);
+
   status_pub_->on_activate();
 
   timer_ = create_wall_timer(
@@ -146,7 +148,8 @@ BehaviorRunner::on_deactivate(const rclcpp_lifecycle::State & /* previous_state 
   RCLCPP_INFO(get_logger(), "BehaviorRunner(%s) on_deactivate", get_name());
   
   timer_ = nullptr;
-  
+  cout_logger_.reset();
+
   // Publish DEACTIVATED status before deactivating the publisher
   std_msgs::msg::String msg;
   msg.data = "DEACTIVATED";
