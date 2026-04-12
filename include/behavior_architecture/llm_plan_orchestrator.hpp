@@ -80,6 +80,7 @@ private:
     int id;
     std::string description;
     std::string objective_yaml;  // serialised objective: block passed to llm_bt_builder
+    std::vector<std::string> outputs;  // declared output blackboard variable names
   };
 
   std::string plan_yaml_;
@@ -89,6 +90,7 @@ private:
   static constexpr int MAX_REPLAN_ATTEMPTS = 3;
   std::string last_failure_reason_;
   std::vector<std::string> step_failure_history_;  // all failure reasons tried for current step
+  std::vector<std::string> accumulated_outputs_;   // blackboard vars from all completed steps (persists across replans)
 
   // ── BehaviorTree internals ────────────────────────────────────────────────
   // Plugins are loaded into the runner; no separate factory needed here.

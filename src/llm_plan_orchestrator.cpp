@@ -66,6 +66,9 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
   try {
     exec_base_dir_ = blackboard_->get<std::string>("llm_exec_dir");
   } catch (...) {}
+  try {
+    mission_name_ = blackboard_->get<std::string>("llm_mission_name");
+  } catch (...) {}
 
   // Build capabilities by concatenating node_descriptions of each bt_nodes_package.
   if (capabilities_yaml_.empty()) {
@@ -141,7 +144,9 @@ LLMPlanOrchestrator::on_activate(const rclcpp_lifecycle::State & previous_state)
   RCLCPP_INFO(get_logger(), "LLMPlanOrchestrator activating");
   status_pub_->on_activate();
   // BaseOrchestrator::on_activate creates the timer_ bound to control_cycle().
-  return BaseOrchestrator::on_activate(previous_state);
+  auto ret = BaseOrchestrator::on_activate(previous_state);
+  RCLCPP_INFO(get_logger(), "⏳ Waiting for a new mission — call /start_mission.");
+  return ret;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -174,7 +179,9 @@ void LLMPlanOrchestrator::handle_start_mission(
 
   goal_ = req->goal;
   context_ = req->context;
-  mission_name_ = req->mission_name;
+  if (!req->mission_name.empty()) {
+    mission_name_ = req->mission_name;
+  }
   if (!req->skills.empty()) {
     skills_ = std::vector<std::string>(req->skills.begin(), req->skills.end());
   }
@@ -183,6 +190,7 @@ void LLMPlanOrchestrator::handle_start_mission(
   replan_count_ = 0;
   last_failure_reason_.clear();
   step_failure_history_.clear();
+  accumulated_outputs_.clear();
   tree_loaded_ = false;
 
   if (save_exec_) {
@@ -246,6 +254,14 @@ void LLMPlanOrchestrator::control_cycle()
       if (save_exec_) {
         current_plan_dir_ = exec_run_dir_ / "plan";
         std::filesystem::create_directories(current_plan_dir_);
+        const auto plan_path = current_plan_dir_ / "plan.yaml";
+        std::ofstream pf(plan_path);
+        if (pf.is_open()) {
+          pf << plan_yaml_;
+          RCLCPP_INFO(get_logger(), "Saved plan YAML: %s", plan_path.c_str());
+        } else {
+          RCLCPP_WARN(get_logger(), "Could not save plan YAML to: %s", plan_path.c_str());
+        }
       }
 
       request_generate_bt(steps_[current_step_].objective_yaml);
@@ -284,6 +300,10 @@ void LLMPlanOrchestrator::control_cycle()
         auto it = runners_.find("llm_bt_runner");
         auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
         runner->set_bt(result->bt_xml);
+        // Reset status tracking so check_behavior_finished() works for every step,
+        // regardless of whether the previous step ended with the same status string.
+        last_status_ = "";
+        status_received_ = "";
         activate_runner("llm_bt_runner");
         tree_loaded_ = true;
         step_start_time_ = now();
@@ -336,6 +356,10 @@ void LLMPlanOrchestrator::control_cycle()
       if (success) {
         RCLCPP_INFO(get_logger(), "Step %zu succeeded", current_step_);
         publish_status("STEP_" + std::to_string(current_step_) + "_SUCCESS");
+        // Persist outputs so they're available to the BT builder after replans too.
+        for (const auto & var : steps_[current_step_].outputs) {
+          accumulated_outputs_.push_back(var);
+        }
         current_step_++;
         step_failure_history_.clear();  // history is per-step
 
@@ -391,6 +415,14 @@ void LLMPlanOrchestrator::control_cycle()
       if (save_exec_) {
         current_plan_dir_ = exec_run_dir_ / ("replan_" + std::to_string(replan_count_));
         std::filesystem::create_directories(current_plan_dir_);
+        const auto plan_path = current_plan_dir_ / "plan.yaml";
+        std::ofstream pf(plan_path);
+        if (pf.is_open()) {
+          pf << plan_yaml_;
+          RCLCPP_INFO(get_logger(), "Saved replan YAML: %s", plan_path.c_str());
+        } else {
+          RCLCPP_WARN(get_logger(), "Could not save replan YAML to: %s", plan_path.c_str());
+        }
       }
 
       request_generate_bt(steps_[current_step_].objective_yaml);
@@ -465,7 +497,21 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
   }
 
   auto request = std::make_shared<llm_bt_builder::srv::GenerateBT::Request>();
-  request->objective = objective_yaml;
+
+  // Pass all blackboard vars accumulated from completed steps (including those from before
+  // a replan) so the BT builder knows what's already available on the blackboard.
+  std::string enriched_objective = objective_yaml;
+  if (!accumulated_outputs_.empty()) {
+    std::string vars_block = "\navailable_blackboard_vars:";
+    for (const auto & var : accumulated_outputs_) {
+      vars_block += "\n  - " + var;
+    }
+    enriched_objective += vars_block;
+    RCLCPP_INFO(get_logger(), "Injecting %zu available blackboard vars for step %zu",
+      accumulated_outputs_.size(), current_step_);
+  }
+
+  request->objective = enriched_objective;
   request->bt_nodes_yaml = bt_nodes_yaml;
 
   // Log only the first line to keep the log readable
@@ -494,6 +540,12 @@ std::vector<LLMPlanOrchestrator::Step> LLMPlanOrchestrator::parse_plan(
       step.id = s["step_id"] ? s["step_id"].as<int>() : static_cast<int>(steps.size());
       step.description = s["description"] ? s["description"].as<std::string>() : "";
       if (s["objective"]) {
+        // Extract declared output variable names before serialising
+        if (s["objective"]["outputs"]) {
+          for (const auto & out : s["objective"]["outputs"]) {
+            step.outputs.push_back(out.as<std::string>());
+          }
+        }
         // Serialise the objective sub-node with its key so the consumer
         // receives the same format as the hand-authored .yaml objective files.
         YAML::Node wrapper;
@@ -584,6 +636,15 @@ void LLMPlanOrchestrator::transition_to(State new_state)
   RCLCPP_INFO(get_logger(), "State: %s → %s",
     state_name(state_).c_str(), state_name(new_state).c_str());
   state_ = new_state;
+  if (new_state == State::SUCCESS) {
+    RCLCPP_INFO(get_logger(),
+      "✅ Mission '%s' completed successfully.", mission_name_.c_str());
+    RCLCPP_INFO(get_logger(), "⏳ Waiting for a new mission — call /start_mission.");
+  } else if (new_state == State::FAILED) {
+    RCLCPP_WARN(get_logger(),
+      "❌ Mission '%s' failed.", mission_name_.c_str());
+    RCLCPP_INFO(get_logger(), "⏳ Waiting for a new mission — call /start_mission.");
+  }
 }
 
 std::string LLMPlanOrchestrator::state_name(State s) const
