@@ -266,6 +266,18 @@ void LLMPlanOrchestrator::control_cycle()
         const auto plan_path = current_plan_dir_ / "plan.yaml";
         std::ofstream pf(plan_path);
         if (pf.is_open()) {
+          if (!preconditions_.empty()) {
+            pf << "preconditions:\n";
+            for (const auto& cond : preconditions_) {
+              pf << "  - " << cond << "\n";
+            }
+          }
+          if (!postconditions_.empty()) {
+            pf << "postconditions:\n";
+            for (const auto& cond : postconditions_) {
+              pf << "  - " << cond << "\n";
+            }
+          }
           pf << plan_yaml_;
           RCLCPP_INFO(get_logger(), "Saved plan YAML: %s", plan_path.c_str());
         } else {
@@ -488,6 +500,18 @@ void LLMPlanOrchestrator::control_cycle()
         const auto plan_path = current_plan_dir_ / "plan.yaml";
         std::ofstream pf(plan_path);
         if (pf.is_open()) {
+          if (!preconditions_.empty()) {
+            pf << "preconditions:\n";
+            for (const auto& cond : preconditions_) {
+              pf << "  - " << cond << "\n";
+            }
+          }
+          if (!postconditions_.empty()) {
+            pf << "postconditions:\n";
+            for (const auto& cond : postconditions_) {
+              pf << "  - " << cond << "\n";
+            }
+          }
           pf << plan_yaml_;
           RCLCPP_INFO(get_logger(), "Saved replan YAML: %s", plan_path.c_str());
         } else {
