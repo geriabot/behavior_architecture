@@ -103,6 +103,7 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
   plan_client_ = create_client<llm_planner_interfaces::srv::PlanTask>("plan_task");
   replan_client_ = create_client<llm_planner_interfaces::srv::ReplanTask>("replan_task");
   generate_bt_client_ = create_client<llm_bt_builder::srv::GenerateBT>("generate_bt");
+  fix_bt_client_ = create_client<llm_bt_builder::srv::FixBT>("fix_bt");
 
   start_mission_srv_ = create_service<llm_planner_interfaces::srv::StartMission>(
     "start_mission",
@@ -188,9 +189,9 @@ void LLMPlanOrchestrator::handle_start_mission(
   steps_.clear();
   current_step_ = 0;
   replan_count_ = 0;
+  bt_regeneration_count_ = 0;
   last_failure_reason_.clear();
   step_failure_history_.clear();
-  accumulated_outputs_.clear();
   tree_loaded_ = false;
 
   if (save_exec_) {
@@ -206,6 +207,12 @@ void LLMPlanOrchestrator::handle_start_mission(
   resp->accepted = true;
   resp->message = "Goal accepted, planning…";
   RCLCPP_INFO(get_logger(), "Goal accepted: '%s'", goal_.c_str());
+
+  initial_blackboard_keys_.clear();
+  auto keys = blackboard_->getKeys();
+  for (const auto & k : keys) {
+    initial_blackboard_keys_.emplace_back(k.data(), k.size());
+  }
 
   request_plan();
 }
@@ -297,6 +304,7 @@ void LLMPlanOrchestrator::control_cycle()
       }
 
       try {
+        last_bt_xml_ = result->bt_xml;
         auto it = runners_.find("llm_bt_runner");
         auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
         runner->set_bt(result->bt_xml);
@@ -311,7 +319,11 @@ void LLMPlanOrchestrator::control_cycle()
       } catch (const std::exception & e) {
         RCLCPP_ERROR(get_logger(), "Failed to create BT from XML: %s", e.what());
         last_failure_reason_ = std::string("createTreeFromText exception: ") + e.what();
-        if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+        
+        if (is_local_error(last_failure_reason_) && bt_regeneration_count_ < MAX_BT_REGENERATIONS) {
+          request_fix_bt(last_bt_xml_, last_failure_reason_);
+        } else if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+          bt_regeneration_count_ = 0;
           request_replan();
         } else {
           publish_status("FAILED_NO_MORE_REPLANS");
@@ -334,6 +346,7 @@ void LLMPlanOrchestrator::control_cycle()
         tree_loaded_ = false;
         last_failure_reason_ = "Step timeout";
         if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+          bt_regeneration_count_ = 0;
           request_replan();
         } else {
           publish_status("FAILED_NO_MORE_REPLANS");
@@ -354,12 +367,9 @@ void LLMPlanOrchestrator::control_cycle()
       tree_loaded_ = false;
 
       if (success) {
+        bt_regeneration_count_ = 0;
         RCLCPP_INFO(get_logger(), "Step %zu succeeded", current_step_);
         publish_status("STEP_" + std::to_string(current_step_) + "_SUCCESS");
-        // Persist outputs so they're available to the BT builder after replans too.
-        for (const auto & var : steps_[current_step_].outputs) {
-          accumulated_outputs_.push_back(var);
-        }
         current_step_++;
         step_failure_history_.clear();  // history is per-step
 
@@ -373,7 +383,65 @@ void LLMPlanOrchestrator::control_cycle()
       } else {
         RCLCPP_WARN(get_logger(), "Step %zu FAILED: %s", current_step_, last_failure_reason_.c_str());
         publish_status("STEP_" + std::to_string(current_step_) + "_FAILED");
+        
+        if (is_local_error(last_failure_reason_) && bt_regeneration_count_ < MAX_BT_REGENERATIONS && !last_bt_xml_.empty()) {
+          request_fix_bt(last_bt_xml_, last_failure_reason_);
+        } else if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+          bt_regeneration_count_ = 0;
+          request_replan();
+        } else {
+          publish_status("FAILED_NO_MORE_REPLANS");
+          transition_to(State::FAILED);
+        }
+      }
+      break;
+    }
+
+    // ── WAITING_FIX_BT: poll async fix_bt future ───────────────────────────
+    case State::WAITING_FIX_BT:
+    {
+      if (!fix_bt_future_.has_value()) {break;}
+      if (fix_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {break;}
+
+      auto result = fix_bt_future_->get();
+      fix_bt_future_.reset();
+
+      if (!result->success || result->bt_xml.empty()) {
+        RCLCPP_ERROR(get_logger(), "Fix BT failed for step %zu. Will trigger mission replan instead.", current_step_);
         if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+          bt_regeneration_count_ = 0;
+          request_replan();
+        } else {
+          publish_status("FAILED_NO_MORE_REPLANS");
+          transition_to(State::FAILED);
+        }
+        break;
+      }
+
+      RCLCPP_INFO(get_logger(), "Fixed BT XML received for step %zu, loading tree", current_step_);
+
+      if (save_exec_) {
+        save_bt_xml(result->bt_xml, current_step_);
+      }
+
+      try {
+        last_bt_xml_ = result->bt_xml;
+        auto it = runners_.find("llm_bt_runner");
+        auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
+        runner->set_bt(result->bt_xml);
+        last_status_ = "";
+        status_received_ = "";
+        activate_runner("llm_bt_runner");
+        tree_loaded_ = true;
+        step_start_time_ = now();
+        transition_to(State::EXECUTING_BT);
+      } catch (const std::exception & e) {
+        RCLCPP_ERROR(get_logger(), "Failed to create fixed BT from XML: %s", e.what());
+        last_failure_reason_ = std::string("createTreeFromText exception: ") + e.what();
+        if (is_local_error(last_failure_reason_) && bt_regeneration_count_ < MAX_BT_REGENERATIONS) {
+          request_fix_bt(last_bt_xml_, last_failure_reason_);
+        } else if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+          bt_regeneration_count_ = 0;
           request_replan();
         } else {
           publish_status("FAILED_NO_MORE_REPLANS");
@@ -498,27 +566,122 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
 
   auto request = std::make_shared<llm_bt_builder::srv::GenerateBT::Request>();
 
-  // Pass all blackboard vars accumulated from completed steps (including those from before
-  // a replan) so the BT builder knows what's already available on the blackboard.
+  // Pass all actual blackboard vars from the memory
   std::string enriched_objective = objective_yaml;
-  if (!accumulated_outputs_.empty()) {
+  auto keys = blackboard_->getKeys();
+  if (!keys.empty()) {
     std::string vars_block = "\navailable_blackboard_vars:";
-    for (const auto & var : accumulated_outputs_) {
-      vars_block += "\n  - " + var;
+    int injected_count = 0;
+    for (const auto & k : keys) {
+      std::string key_str{k.data(), k.size()};
+      if (key_str.empty() || key_str[0] == '_' || key_str == "bt_last_failure") continue;
+      if (std::find(initial_blackboard_keys_.begin(), initial_blackboard_keys_.end(), key_str) != initial_blackboard_keys_.end()) continue;
+      
+      vars_block += "\n  - " + key_str;
+      injected_count++;
     }
-    enriched_objective += vars_block;
-    RCLCPP_INFO(get_logger(), "Injecting %zu available blackboard vars for step %zu",
-      accumulated_outputs_.size(), current_step_);
+    if (injected_count > 0) {
+      enriched_objective += vars_block;
+      RCLCPP_INFO(get_logger(), "Injecting %d available blackboard vars for step %zu",
+        injected_count, current_step_);
+    }
   }
 
   request->objective = enriched_objective;
   request->bt_nodes_yaml = bt_nodes_yaml;
 
-  // Log only the first line to keep the log readable
+  // Log step name and port mappings
   const std::string first_line = objective_yaml.substr(0, objective_yaml.find('\n'));
   RCLCPP_INFO(get_logger(), "Requesting BT for step %zu: '%s'", current_step_, first_line.c_str());
+
+  // Log expected outputs (ports this step will write to the blackboard)
+  const auto & step_outputs = steps_[current_step_].outputs;
+  if (!step_outputs.empty()) {
+    std::string out_str;
+    for (const auto & v : step_outputs) { out_str += " " + v; }
+    RCLCPP_INFO(get_logger(), "  → outputs (will write):%s", out_str.c_str());
+  }
   gen_bt_future_ = generate_bt_client_->async_send_request(request);
   transition_to(State::GENERATING_BT);
+}
+
+void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const std::string & error_msg)
+{
+  if (!fix_bt_client_->wait_for_service(std::chrono::seconds(0))) {
+    RCLCPP_WARN(get_logger(), "fix_bt service not available yet");
+  }
+
+  bt_regeneration_count_++;
+  auto request = std::make_shared<llm_bt_builder::srv::FixBT::Request>();
+
+  std::string bt_nodes_yaml;
+  if (!capabilities_yaml_.empty()) {
+    if (capabilities_yaml_.find('\n') == std::string::npos &&
+        capabilities_yaml_.size() > 5 &&
+        capabilities_yaml_.substr(capabilities_yaml_.size() - 5) == ".yaml")
+    {
+      bt_nodes_yaml = load_file(capabilities_yaml_);
+    } else {
+      bt_nodes_yaml = capabilities_yaml_;
+    }
+  }
+
+  std::string enriched_objective = steps_[current_step_].objective_yaml;
+  auto keys = blackboard_->getKeys();
+  if (!keys.empty()) {
+    std::string vars_block = "\navailable_blackboard_vars:";
+    int injected_count = 0;
+    for (const auto & k : keys) {
+      std::string key_str{k.data(), k.size()};
+      if (key_str.empty() || key_str[0] == '_' || key_str == "bt_last_failure") continue;
+      if (std::find(initial_blackboard_keys_.begin(), initial_blackboard_keys_.end(), key_str) != initial_blackboard_keys_.end()) continue;
+      
+      vars_block += "\n  - " + key_str;
+      injected_count++;
+    }
+    if (injected_count > 0) {
+      enriched_objective += vars_block;
+      RCLCPP_INFO(get_logger(), "Injecting %d available blackboard vars for step %zu (FixBT)",
+        injected_count, current_step_);
+    }
+  }
+
+  request->objective = enriched_objective;
+  request->broken_bt_xml = broken_xml;
+  request->error_message = error_msg;
+  request->bt_nodes_yaml = bt_nodes_yaml;
+
+  RCLCPP_WARN(get_logger(), "Requesting FixBT for step %zu (attempt %d). Error: %s",
+              current_step_, bt_regeneration_count_, error_msg.c_str());
+
+  fix_bt_future_ = fix_bt_client_->async_send_request(request);
+  transition_to(State::WAITING_FIX_BT);
+}
+
+bool LLMPlanOrchestrator::is_local_error(const std::string & reason)
+{
+  if (reason.empty() || reason == "BT returned FAILURE (no details written to blackboard)") {
+    return false;
+  }
+
+  // Common BT loading / parsing / missing config errors
+  const std::vector<std::string> local_keywords = {
+    "missing required input",
+    "missing input",
+    "createTreeFromText exception",
+    "missing port",
+    "syntax",
+    "parse",
+    "XML",
+    "Node configuration"
+  };
+
+  for (const auto& kw : local_keywords) {
+    if (reason.find(kw) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -655,6 +818,7 @@ std::string LLMPlanOrchestrator::state_name(State s) const
     case State::GENERATING_BT: return "GENERATING_BT";
     case State::EXECUTING_BT: return "EXECUTING_BT";
     case State::WAITING_REPLAN: return "WAITING_REPLAN";
+    case State::WAITING_FIX_BT: return "WAITING_FIX_BT";
     case State::SUCCESS: return "SUCCESS";
     case State::FAILED: return "FAILED";
     default: return "UNKNOWN";

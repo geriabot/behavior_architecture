@@ -28,6 +28,7 @@
 #include "llm_planner_interfaces/srv/replan_task.hpp"
 #include "llm_planner_interfaces/srv/start_mission.hpp"
 #include "llm_bt_builder/srv/generate_bt.hpp"
+#include "llm_bt_builder/srv/fix_bt.hpp"
 
 #include "behavior_architecture/base_orchestrator.hpp"
 #include "behavior_architecture/orchestrator_factory.hpp"
@@ -60,6 +61,7 @@ private:
     IDLE,
     WAITING_PLAN,
     GENERATING_BT,
+    WAITING_FIX_BT,
     EXECUTING_BT,
     WAITING_REPLAN,
     SUCCESS,
@@ -88,9 +90,11 @@ private:
   std::size_t current_step_{0};
   int replan_count_{0};
   static constexpr int MAX_REPLAN_ATTEMPTS = 3;
+  int bt_regeneration_count_{0};
+  static constexpr int MAX_BT_REGENERATIONS = 3;
   std::string last_failure_reason_;
   std::vector<std::string> step_failure_history_;  // all failure reasons tried for current step
-  std::vector<std::string> accumulated_outputs_;   // blackboard vars from all completed steps (persists across replans)
+  std::vector<std::string> initial_blackboard_keys_; // variables present before execution
 
   // ── BehaviorTree internals ────────────────────────────────────────────────
   // Plugins are loaded into the runner; no separate factory needed here.
@@ -102,6 +106,7 @@ private:
   rclcpp::Client<llm_planner_interfaces::srv::PlanTask>::SharedPtr plan_client_;
   rclcpp::Client<llm_planner_interfaces::srv::ReplanTask>::SharedPtr replan_client_;
   rclcpp::Client<llm_bt_builder::srv::GenerateBT>::SharedPtr generate_bt_client_;
+  rclcpp::Client<llm_bt_builder::srv::FixBT>::SharedPtr fix_bt_client_;
 
   rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::String>::SharedPtr status_pub_;
 
@@ -109,16 +114,19 @@ private:
   using PlanFuture = rclcpp::Client<llm_planner_interfaces::srv::PlanTask>::SharedFuture;
   using ReplanFuture = rclcpp::Client<llm_planner_interfaces::srv::ReplanTask>::SharedFuture;
   using GenBTFuture = rclcpp::Client<llm_bt_builder::srv::GenerateBT>::SharedFuture;
+  using FixBTFuture = rclcpp::Client<llm_bt_builder::srv::FixBT>::SharedFuture;
 
   std::optional<PlanFuture> plan_future_;
   std::optional<ReplanFuture> replan_future_;
   std::optional<GenBTFuture> gen_bt_future_;
+  std::optional<FixBTFuture> fix_bt_future_;
 
   // ── Parameters ────────────────────────────────────────────────────────────
   std::vector<std::string> plugin_libraries_;
   std::string capabilities_yaml_;
   double bt_timeout_sec_;
   rclcpp::Time step_start_time_;
+  std::string last_bt_xml_;  // The last XML correctly accepted to pass into FixBT
 
   // ── Execution saving ──────────────────────────────────────────────────────
   bool save_exec_{false};
@@ -136,6 +144,9 @@ private:
   void request_plan();
   void request_replan();
   void request_generate_bt(const std::string & objective_yaml);
+  void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
+
+  bool is_local_error(const std::string & reason);
 
   std::vector<Step> parse_plan(const std::string & yaml_str);
   std::string load_file(const std::string & path);
