@@ -59,6 +59,20 @@ int main(int argc, char ** argv)
   const std::string goal    = doc["goal"].as<std::string>();
   const std::string context = doc["context"] ? doc["context"].as<std::string>() : "";
 
+  std::vector<std::string> preconditions;
+  if (doc["preconditions"]) {
+    for (const auto & p : doc["preconditions"]) {
+      preconditions.push_back(p.as<std::string>());
+    }
+  }
+
+  std::vector<std::string> postconditions;
+  if (doc["postconditions"]) {
+    for (const auto & p : doc["postconditions"]) {
+      postconditions.push_back(p.as<std::string>());
+    }
+  }
+
   // Skills: prefer dedicated skills_file; fall back to 'skills' key in goal_file
   std::vector<std::string> skills;
   if (!skills_file.empty()) {
@@ -97,6 +111,8 @@ int main(int argc, char ** argv)
   request->goal    = goal;
   request->context = context;
   request->skills  = skills;
+  request->preconditions = preconditions;
+  request->postconditions = postconditions;
 
   RCLCPP_INFO(node->get_logger(), "Sending goal: '%s'", goal.c_str());
   RCLCPP_INFO(node->get_logger(), "Context:      '%s'", context.c_str());

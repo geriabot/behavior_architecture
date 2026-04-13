@@ -180,6 +180,8 @@ void LLMPlanOrchestrator::handle_start_mission(
 
   goal_ = req->goal;
   context_ = req->context;
+  preconditions_ = req->preconditions;
+  postconditions_ = req->postconditions;
   if (!req->mission_name.empty()) {
     mission_name_ = req->mission_name;
   }
@@ -513,6 +515,8 @@ void LLMPlanOrchestrator::request_plan()
   request->goal = goal_;
   request->context = context_;
   request->skills = skills_;
+  request->preconditions = preconditions_;
+  request->postconditions = postconditions_;
   request->mission_name = mission_name_;
 
   RCLCPP_INFO(get_logger(), "Requesting plan for goal: '%s'", goal_.c_str());
@@ -535,6 +539,8 @@ void LLMPlanOrchestrator::request_replan()
   step_failure_history_.push_back(last_failure_reason_);  // record before sending
   request->previous_failures = step_failure_history_;
   request->skills = skills_;
+  request->preconditions = preconditions_;
+  request->postconditions = postconditions_;
   request->mission_name = mission_name_;
 
   RCLCPP_INFO(get_logger(), "Requesting replan (attempt %d) for step %zu: %s",

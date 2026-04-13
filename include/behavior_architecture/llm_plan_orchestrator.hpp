@@ -74,6 +74,8 @@ private:
   std::string goal_;
   std::string context_;
   std::vector<std::string> skills_;  // capabilities available to the robot
+  std::vector<std::string> preconditions_;
+  std::vector<std::string> postconditions_;
   std::string mission_name_;         // optional identifier for saved plan filenames
 
   // ── Plan data ─────────────────────────────────────────────────────────────
