@@ -69,6 +69,7 @@ install(DIRECTORY config/
 add_executable(mission_executor
   src/mission_executor.cpp
   src/llm_plan_orchestrator.cpp
+  src/mcp_llm_plan_orchestrator.cpp
   src/yaml_utils.cpp
   src/examples/restaurant_orchestrator.cpp
   src/examples/simple_orchestrator.cpp
@@ -111,6 +112,7 @@ install(TARGETS simple_example
 add_executable(llm_plan_executor
   src/llm_plan_executor_main.cpp
   src/llm_plan_orchestrator.cpp
+  src/mcp_llm_plan_orchestrator.cpp
   src/yaml_utils.cpp
 )
 target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)

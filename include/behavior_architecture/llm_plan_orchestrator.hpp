@@ -56,6 +56,8 @@ private:
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
   on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
+
+protected:
   // ── FSM ──────────────────────────────────────────────────────────────────
   enum class State
   {
@@ -68,6 +70,8 @@ private:
     SUCCESS,
     FAILED
   };
+
+protected:
 
   State state_{State::IDLE};
 
@@ -139,17 +143,16 @@ private:
   std::filesystem::path exec_run_dir_;
   std::filesystem::path current_plan_dir_;
 
-  // ── Callbacks & helpers ───────────────────────────────────────────────────
-  void control_cycle();
-
-  void handle_start_mission(
+protected:
+  // ── Extension hooks for MCP/specialized orchestrators ───────────────────
+  virtual void handle_start_mission(
     const llm_planner_interfaces::srv::StartMission::Request::SharedPtr req,
     llm_planner_interfaces::srv::StartMission::Response::SharedPtr resp);
 
-  void request_plan();
-  void request_replan();
-  void request_generate_bt(const std::string & objective_yaml);
-  void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
+  virtual void request_plan();
+  virtual void request_replan();
+  virtual void request_generate_bt(const std::string & objective_yaml);
+  virtual void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
 
   bool is_local_error(const std::string & reason);
 
@@ -159,11 +162,15 @@ private:
 
   /// Collect a descriptive failure reason from the BT tree and blackboard.
   /// Must be called BEFORE haltTree() so node statuses are still valid.
-  std::string collect_failure_reason();
+  virtual std::string collect_failure_reason();
 
   void publish_status(const std::string & msg);
-  void transition_to(State new_state);
+  virtual void transition_to(State new_state);
   std::string state_name(State s) const;
+
+private:
+  // ── Callbacks & helpers ───────────────────────────────────────────────────
+  void control_cycle();
 };
 
 }  // namespace behavior_architecture

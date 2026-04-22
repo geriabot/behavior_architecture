@@ -27,6 +27,13 @@
 namespace behavior_architecture
 {
 
+inline bool is_llm_orchestrator_type(const std::string & orchestrator_type)
+{
+  return orchestrator_type == "llm" ||
+         orchestrator_type == "mcp_llm" ||
+         orchestrator_type == "mcp_llm_plan_orchestrator";
+}
+
 /**
  * @brief Full configuration parsed from a YAML config file.
  */
@@ -87,7 +94,7 @@ inline ActionConfig parse_config(const std::string & config_file)
       config.bt_nodes_packages.push_back(yaml["bt_nodes_package"].as<std::string>());
     }
 
-    if (config.orchestrator_type == "llm") {
+    if (is_llm_orchestrator_type(config.orchestrator_type)) {
       if (yaml["bt_control_period_ms"]) {
         config.bt_control_period_ms = yaml["bt_control_period_ms"].as<int>();
       }
@@ -147,7 +154,7 @@ inline void setup_blackboard_from_config(
   BT::Blackboard::Ptr blackboard,
   const ActionConfig & config)
 {
-  if (config.orchestrator_type == "llm") {
+  if (is_llm_orchestrator_type(config.orchestrator_type)) {
     blackboard->set<std::vector<std::string>>("llm_plugin_libraries", config.plugin_libraries);
     blackboard->set<std::vector<std::string>>("llm_bt_nodes_packages", config.bt_nodes_packages);
     blackboard->set<int>("llm_control_period_ms", config.bt_control_period_ms);

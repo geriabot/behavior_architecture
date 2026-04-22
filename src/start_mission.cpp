@@ -13,10 +13,45 @@
 // limitations under the License.
 
 #include <string>
+#include <set>
 
 #include "rclcpp/rclcpp.hpp"
 #include "llm_planner_interfaces/srv/start_mission.hpp"
 #include "yaml-cpp/yaml.h"
+
+namespace
+{
+
+std::size_t count_start_mission_providers(const rclcpp::Node::SharedPtr & node)
+{
+  std::set<std::string> providers;
+  const auto graph = node->get_node_graph_interface();
+  const auto node_names = graph->get_node_names_and_namespaces();
+
+  for (const auto & node_name_ns : node_names) {
+    const auto & remote_node_name = node_name_ns.first;
+    const auto & remote_namespace = node_name_ns.second;
+
+    std::map<std::string, std::vector<std::string>> service_names_and_types;
+    try {
+      service_names_and_types = graph->get_service_names_and_types_by_node(
+        remote_node_name, remote_namespace);
+    } catch (...) {
+      continue;
+    }
+
+    for (const auto & kv : service_names_and_types) {
+      const auto & service_name = kv.first;
+      if (service_name == "start_mission" || service_name == "/start_mission") {
+        providers.insert(remote_namespace + "/" + remote_node_name);
+      }
+    }
+  }
+
+  return providers.size();
+}
+
+}  // namespace
 
 int main(int argc, char ** argv)
 {
@@ -104,6 +139,21 @@ int main(int argc, char ** argv)
   RCLCPP_INFO(node->get_logger(), "Waiting for /start_mission service...");
   if (!client->wait_for_service(std::chrono::seconds(10))) {
     RCLCPP_ERROR(node->get_logger(), "Service not available after 10s");
+    rclcpp::shutdown();
+    return 1;
+  }
+
+  const std::size_t provider_count = count_start_mission_providers(node);
+  if (provider_count == 0) {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Could not confirm /start_mission providers from graph yet; proceeding because wait_for_service succeeded");
+  }
+  if (provider_count > 1) {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Detected %zu providers for /start_mission. Keep only one orchestrator active (llm or mcp_llm).",
+      provider_count);
     rclcpp::shutdown();
     return 1;
   }
