@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "behavior_architecture/llm_plan_orchestrator.hpp"
+#include "behavior_architecture/yaml_utils.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -182,6 +183,7 @@ void LLMPlanOrchestrator::handle_start_mission(
   context_ = req->context;
   preconditions_ = req->preconditions;
   postconditions_ = req->postconditions;
+  useful_info_ = req->useful_info;
   if (!req->mission_name.empty()) {
     mission_name_ = req->mission_name;
   }
@@ -193,6 +195,7 @@ void LLMPlanOrchestrator::handle_start_mission(
   replan_count_ = 0;
   bt_regeneration_count_ = 0;
   last_failure_reason_.clear();
+  last_failure_code_.clear();
   step_failure_history_.clear();
   tree_loaded_ = false;
 
@@ -541,9 +544,11 @@ void LLMPlanOrchestrator::request_plan()
   request->skills = skills_;
   request->preconditions = preconditions_;
   request->postconditions = postconditions_;
+  request->useful_info = useful_info_;
   request->mission_name = mission_name_;
 
   RCLCPP_INFO(get_logger(), "Requesting plan for goal: '%s'", goal_.c_str());
+  RCLCPP_INFO(get_logger(), "  → context: '%s'", context_.c_str());
   plan_future_ = plan_client_->async_send_request(request);
   transition_to(State::WAITING_PLAN);
 }
@@ -565,6 +570,7 @@ void LLMPlanOrchestrator::request_replan()
   request->skills = skills_;
   request->preconditions = preconditions_;
   request->postconditions = postconditions_;
+  request->useful_info = useful_info_;
   request->mission_name = mission_name_;
 
   RCLCPP_INFO(get_logger(), "Requesting replan (attempt %d) for step %zu: %s",
@@ -598,6 +604,8 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
 
   // Pass all actual blackboard vars from the memory
   std::string enriched_objective = objective_yaml;
+  enriched_objective = behavior_architecture::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
+
   auto keys = blackboard_->getKeys();
   if (!keys.empty()) {
     std::string vars_block = "\navailable_blackboard_vars:";
@@ -657,6 +665,7 @@ void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const s
   }
 
   std::string enriched_objective = steps_[current_step_].objective_yaml;
+  enriched_objective = behavior_architecture::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
   auto keys = blackboard_->getKeys();
   if (!keys.empty()) {
     std::string vars_block = "\navailable_blackboard_vars:";
@@ -690,14 +699,17 @@ void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const s
 
 bool LLMPlanOrchestrator::is_local_error(const std::string & reason)
 {
+  if (last_failure_code_ == "bt_config_error") {
+    return true;
+  }
+
   if (reason.empty() || reason == "BT returned FAILURE (no details written to blackboard)") {
     return false;
   }
 
-  // Common BT loading / parsing / missing config errors
+  // Fallback only for orchestrator-side XML / loading errors that do not come
+  // from structured BT node diagnostics.
   const std::vector<std::string> local_keywords = {
-    "missing required input",
-    "missing input",
     "createTreeFromText exception",
     "missing port",
     "syntax",
@@ -770,11 +782,17 @@ std::string LLMPlanOrchestrator::collect_failure_reason()
 {
   // Read the "bt_last_failure" key written by the failing BT node via bt_failure()
   std::string bb_reason;
+  std::string bb_code;
   try {
     bb_reason = blackboard_->get<std::string>("bt_last_failure");
   } catch (...) {}
+  try {
+    bb_code = blackboard_->get<std::string>("bt_last_failure_code");
+  } catch (...) {}
   // Clear so it doesn't bleed into the next step
   blackboard_->set("bt_last_failure", std::string{});
+  blackboard_->set("bt_last_failure_code", std::string{});
+  last_failure_code_ = bb_code;
 
   if (bb_reason.empty()) {
     bb_reason = "BT returned FAILURE (no details written to blackboard)";
@@ -854,5 +872,7 @@ std::string LLMPlanOrchestrator::state_name(State s) const
     default: return "UNKNOWN";
   }
 }
+
+// Implementation moved to yaml_utils.cpp
 
 }  // namespace behavior_architecture

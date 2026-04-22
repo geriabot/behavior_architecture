@@ -24,18 +24,18 @@ int main(int argc, char ** argv)
   auto node = rclcpp::Node::make_shared("start_mission");
 
   // Path to the YAML file with the goal definition
-  node->declare_parameter("goal_file", std::string(""));
-  // Optional separate file listing robot skills; overrides any 'skills' key in goal_file
+  node->declare_parameter("mission_file", std::string(""));
+  // Optional separate file listing robot skills; overrides any 'skills' key in mission_file
   node->declare_parameter("skills_file", std::string(""));
 
-  const std::string goal_file   = node->get_parameter("goal_file").as_string();
+  const std::string mission_file   = node->get_parameter("mission_file").as_string();
   const std::string skills_file = node->get_parameter("skills_file").as_string();
 
-  if (goal_file.empty()) {
-    RCLCPP_ERROR(node->get_logger(), "Parameter 'goal_file' is required");
+  if (mission_file.empty()) {
+    RCLCPP_ERROR(node->get_logger(), "Parameter 'mission_file' is required");
     RCLCPP_ERROR(node->get_logger(),
       "Usage: ros2 run behavior_architecture start_mission "
-      "--ros-args -p goal_file:=/path/to/goal.yaml [-p skills_file:=/path/to/skills.yaml]");
+      "--ros-args -p mission_file:=/path/to/goal.yaml [-p skills_file:=/path/to/skills.yaml]");
     rclcpp::shutdown();
     return 1;
   }
@@ -43,9 +43,9 @@ int main(int argc, char ** argv)
   // Load goal YAML
   YAML::Node doc;
   try {
-    doc = YAML::LoadFile(goal_file);
+    doc = YAML::LoadFile(mission_file);
   } catch (const YAML::Exception & e) {
-    RCLCPP_ERROR(node->get_logger(), "Failed to load '%s': %s", goal_file.c_str(), e.what());
+    RCLCPP_ERROR(node->get_logger(), "Failed to load '%s': %s", mission_file.c_str(), e.what());
     rclcpp::shutdown();
     return 1;
   }
@@ -58,6 +58,7 @@ int main(int argc, char ** argv)
 
   const std::string goal    = doc["goal"].as<std::string>();
   const std::string context = doc["context"] ? doc["context"].as<std::string>() : "";
+  const std::string useful_info = doc["useful_info"] ? doc["useful_info"].as<std::string>() : "";
 
   std::vector<std::string> preconditions;
   if (doc["preconditions"]) {
@@ -73,7 +74,7 @@ int main(int argc, char ** argv)
     }
   }
 
-  // Skills: prefer dedicated skills_file; fall back to 'skills' key in goal_file
+  // Skills: prefer dedicated skills_file; fall back to 'skills' key in mission_file
   std::vector<std::string> skills;
   if (!skills_file.empty()) {
     try {
@@ -95,7 +96,7 @@ int main(int argc, char ** argv)
     for (const auto & s : doc["skills"]) {
       skills.push_back(s.as<std::string>());
     }
-    RCLCPP_INFO(node->get_logger(), "Loaded %zu skill(s) from goal_file", skills.size());
+    RCLCPP_INFO(node->get_logger(), "Loaded %zu skill(s) from mission_file", skills.size());
   }
 
   auto client = node->create_client<llm_planner_interfaces::srv::StartMission>("start_mission");
@@ -113,6 +114,7 @@ int main(int argc, char ** argv)
   request->skills  = skills;
   request->preconditions = preconditions;
   request->postconditions = postconditions;
+  request->useful_info = useful_info;
 
   RCLCPP_INFO(node->get_logger(), "Sending goal: '%s'", goal.c_str());
   RCLCPP_INFO(node->get_logger(), "Context:      '%s'", context.c_str());

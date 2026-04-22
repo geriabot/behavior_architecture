@@ -505,7 +505,7 @@ An ephemeral node that reads a YAML file and calls `/start_mission` once, then e
 ```bash
 ros2 run behavior_architecture test_start_mission \
   --ros-args \
-  -p goal_file:=/path/to/llm_config.yaml \
+  -p mission_file:=/path/to/llm_config.yaml \
   -p skills_file:=/path/to/skills.yaml
 ```
 

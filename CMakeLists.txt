@@ -69,6 +69,7 @@ install(DIRECTORY config/
 add_executable(mission_executor
   src/mission_executor.cpp
   src/llm_plan_orchestrator.cpp
+  src/yaml_utils.cpp
   src/examples/restaurant_orchestrator.cpp
   src/examples/simple_orchestrator.cpp
 )
@@ -84,6 +85,7 @@ install(TARGETS mission_executor
 add_executable(restaurant_example
   src/examples/restaurant_main.cpp
   src/examples/restaurant_orchestrator.cpp
+  src/yaml_utils.cpp
 )
 target_link_libraries(restaurant_example ${PROJECT_NAME} yaml-cpp)
 ament_target_dependencies(restaurant_example ${dependencies} ament_index_cpp)
@@ -96,6 +98,7 @@ install(TARGETS restaurant_example
 add_executable(simple_example
   src/examples/simple_main.cpp
   src/examples/simple_orchestrator.cpp
+  src/yaml_utils.cpp
 )
 target_link_libraries(simple_example ${PROJECT_NAME} yaml-cpp)
 ament_target_dependencies(simple_example ${dependencies} ament_index_cpp)
@@ -108,6 +111,7 @@ install(TARGETS simple_example
 add_executable(llm_plan_executor
   src/llm_plan_executor_main.cpp
   src/llm_plan_orchestrator.cpp
+  src/yaml_utils.cpp
 )
 target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
 ament_target_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)

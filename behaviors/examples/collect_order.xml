@@ -15,7 +15,7 @@
               timeout="10000"/>
       
       <!-- Check if ready -->
-      <Confirmation name="CheckReady"
+      <YesNo name="CheckReady"
                     text="{ready_response}"
                     result="{ready_answer}"
                     service_name="/yesno_service"
@@ -61,7 +61,7 @@
           <Script code="order_list := drink + ',' + meal"/>
           
           <SpeakEnum name="SayOrder"
-                     text="{order_list}"
+                     list="{order_list}"
                      separator=","
                      language="es"
                      service_name="/tts_service"
@@ -93,7 +93,7 @@
       <input_port name="timeout"/>
     </Action>
     <Action ID="SpeakEnum">
-      <input_port name="text"/>
+      <input_port name="list"/>
       <input_port name="separator"/>
       <input_port name="language"/>
       <input_port name="service_name"/>
@@ -111,7 +111,7 @@
       <input_port name="service_name"/>
       <input_port name="timeout"/>
     </Action>
-    <Action ID="Confirmation">
+    <Action ID="YesNo">
       <input_port name="text"/>
       <input_port name="result"/>
       <input_port name="service_name"/>

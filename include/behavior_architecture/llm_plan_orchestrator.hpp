@@ -39,6 +39,7 @@ namespace behavior_architecture
 class LLMPlanOrchestrator : public BaseOrchestrator
 {
 public:
+public:
   explicit LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard);
   ~LLMPlanOrchestrator() = default;
 
@@ -77,6 +78,7 @@ private:
   std::vector<std::string> preconditions_;
   std::vector<std::string> postconditions_;
   std::string mission_name_;         // optional identifier for saved plan filenames
+  std::string useful_info_;          // información útil propagada desde StartMission
 
   // ── Plan data ─────────────────────────────────────────────────────────────
   struct Step
@@ -95,6 +97,7 @@ private:
   int bt_regeneration_count_{0};
   static constexpr int MAX_BT_REGENERATIONS = 3;
   std::string last_failure_reason_;
+  std::string last_failure_code_;
   std::vector<std::string> step_failure_history_;  // all failure reasons tried for current step
   std::vector<std::string> initial_blackboard_keys_; // variables present before execution
 
