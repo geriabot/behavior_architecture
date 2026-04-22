@@ -38,7 +38,7 @@ behaviors/
 
 ### Method 1: YAML Configuration (Recommended)
 
-Most flexible approach using the action_executor:
+Most flexible approach using the mission_executor:
 
 ```yaml
 # your_config.yaml
@@ -265,5 +265,5 @@ activateRunner("monitoring_runner");
 
 - [behaviors/README.md](behaviors/README.md) - Complete catalogue documentation
 - [README.md](README.md) - Framework overview
-- [GENERIC_ACTION_EXECUTOR_README.md](GENERIC_ACTION_EXECUTOR_README.md) - YAML configuration guide
-- [ACTION_EXECUTOR_GUIDE.md](ACTION_EXECUTOR_GUIDE.md) - Creating custom orchestrators
+- [GENERIC_MISSION_EXECUTOR_README.md](GENERIC_MISSION_EXECUTOR_README.md) - YAML configuration guide
+- [MISSION_EXECUTOR_GUIDE.md](MISSION_EXECUTOR_GUIDE.md) - Creating custom orchestrators

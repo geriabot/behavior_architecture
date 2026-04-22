@@ -77,24 +77,24 @@ void SimpleOrchestrator::go_to_state(int state)
   switch (state_) {
     case State::INIT:
       RCLCPP_INFO(get_logger(), "Transitioning to INIT");
-      clear_activation();
+      deactivate_all_runners();
       break;
 
     case State::STATE_1:
       RCLCPP_INFO(get_logger(), "Transitioning to STATE_1");
-      clear_activation();
-      add_activation("state1_runner");
+      deactivate_all_runners();
+      activate_runner("state1_runner");
       break;
 
     case State::STATE_2:
       RCLCPP_INFO(get_logger(), "Transitioning to STATE_2");
-      clear_activation();
-      add_activation("state2_runner");
+      deactivate_all_runners();
+      activate_runner("state2_runner");
       break;
 
     case State::STOP:
       RCLCPP_INFO(get_logger(), "Transitioning to STOP");
-      clear_activation();
+      deactivate_all_runners();
       break;
   }
 }

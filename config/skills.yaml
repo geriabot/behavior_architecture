@@ -1,0 +1,15 @@
+# skills.yaml
+# Capabilities available to the robot in this deployment.
+# This file is passed to test_start_mission via the 'skills_file' launch argument
+# and its contents are forwarded to every plan/replan request so the LLM
+# plans exclusively within this capability envelope.
+#
+# Usage:
+#   ros2 launch behavior_architecture llm_dummy_demo.launch.py \
+#     skills_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/skills.yaml
+
+skills:
+  - "Navigate to a location"
+  - "Speak using text-to-speech"
+  - "Listen and transcribe speech using speech-to-text"
+  - "Detect and identify persons"

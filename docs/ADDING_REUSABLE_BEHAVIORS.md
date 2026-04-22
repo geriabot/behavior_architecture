@@ -81,7 +81,7 @@ cd ~/social_nao_ws
 colcon build --packages-select behavior_architecture
 source install/setup.bash
 
-ros2 launch behavior_architecture action_executor.launch.py \
+ros2 launch behavior_architecture mission_executor.launch.py \
   config_file:=config/test_navigate_config.yaml
 ```
 

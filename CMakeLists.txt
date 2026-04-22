@@ -10,21 +10,19 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(rclcpp_cascade_lifecycle REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(std_srvs REQUIRED)
-find_package(social_bt_nodes REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(llm_planner_interfaces REQUIRED)
+find_package(llm_bt_builder REQUIRED)
 
 set(dependencies
   rclcpp
   ament_index_cpp
-  rclcpp_cascade_lifecycle
+  rclcpp_lifecycle
   behaviortree_cpp
   std_msgs
-  std_srvs
-  social_bt_nodes
 )
 
 include_directories(include)
@@ -67,16 +65,18 @@ install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
 )
 
-# Generic action executor (YAML-configured)
-add_executable(action_executor
-  src/action_executor.cpp
+# Generic mission executor (YAML-configured, supports both fixed and LLM modes)
+add_executable(mission_executor
+  src/mission_executor.cpp
+  src/llm_plan_orchestrator.cpp
+  src/yaml_utils.cpp
   src/examples/restaurant_orchestrator.cpp
   src/examples/simple_orchestrator.cpp
 )
-target_link_libraries(action_executor ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(action_executor ${dependencies})
+target_link_libraries(mission_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(mission_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
 
-install(TARGETS action_executor
+install(TARGETS mission_executor
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -85,9 +85,10 @@ install(TARGETS action_executor
 add_executable(restaurant_example
   src/examples/restaurant_main.cpp
   src/examples/restaurant_orchestrator.cpp
+  src/yaml_utils.cpp
 )
-target_link_libraries(restaurant_example ${PROJECT_NAME})
-ament_target_dependencies(restaurant_example ${dependencies})
+target_link_libraries(restaurant_example ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(restaurant_example ${dependencies} ament_index_cpp)
 
 install(TARGETS restaurant_example
   DESTINATION lib/${PROJECT_NAME}
@@ -97,11 +98,34 @@ install(TARGETS restaurant_example
 add_executable(simple_example
   src/examples/simple_main.cpp
   src/examples/simple_orchestrator.cpp
+  src/yaml_utils.cpp
 )
-target_link_libraries(simple_example ${PROJECT_NAME})
-ament_target_dependencies(simple_example ${dependencies})
+target_link_libraries(simple_example ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(simple_example ${dependencies} ament_index_cpp)
 
 install(TARGETS simple_example
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# LLM-driven plan executor
+add_executable(llm_plan_executor
+  src/llm_plan_executor_main.cpp
+  src/llm_plan_orchestrator.cpp
+  src/yaml_utils.cpp
+)
+target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
+
+install(TARGETS llm_plan_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Client to send a mission to the LLM orchestrator
+add_executable(start_mission src/start_mission.cpp)
+target_link_libraries(start_mission yaml-cpp)
+ament_target_dependencies(start_mission rclcpp llm_planner_interfaces)
+
+install(TARGETS start_mission
   DESTINATION lib/${PROJECT_NAME}
 )
 

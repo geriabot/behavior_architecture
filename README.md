@@ -7,8 +7,8 @@ Generic behavior architecture framework for ROS 2 robots using FSM (Finite State
 - **[behaviors/README.md](behaviors/README.md)** - Complete behavior catalogue with all available reusable behaviors
 - **[docs/USING_REUSABLE_BEHAVIORS.md](docs/USING_REUSABLE_BEHAVIORS.md)** - Quick reference for using behaviors in your packages
 - **[docs/ADDING_REUSABLE_BEHAVIORS.md](docs/ADDING_REUSABLE_BEHAVIORS.md)** - Step-by-step guide for creating new reusable behaviors
-- **[GENERIC_ACTION_EXECUTOR_README.md](GENERIC_ACTION_EXECUTOR_README.md)** - YAML configuration guide
-- **[ACTION_EXECUTOR_GUIDE.md](ACTION_EXECUTOR_GUIDE.md)** - Creating custom orchestrators
+- **[GENERIC_MISSION_EXECUTOR_README.md](GENERIC_MISSION_EXECUTOR_README.md)** - YAML configuration guide
+- **[MISSION_EXECUTOR_GUIDE.md](MISSION_EXECUTOR_GUIDE.md)** - Creating custom orchestrators
 - **[BEHAVIOR_CATALOGUE_SUMMARY.md](BEHAVIOR_CATALOGUE_SUMMARY.md)** - Summary of catalogue restructuring
 
 ## Overview
@@ -17,9 +17,9 @@ This package provides a reusable framework for implementing hierarchical robot b
 - A **Finite State Machine (FSM)** orchestrates high-level behavior states
 - **BehaviorTree nodes** (loaded as plugins) implement the actual behaviors for each state
 - **BehaviorRunner** loads and executes BehaviorTree XML files with lifecycle management
-- **BaseOrchestrator** coordinates BehaviorRunner activation/deactivation via cascade lifecycle
+- **BaseOrchestrator** coordinates BehaviorRunner activation/deactivation
 - A **shared blackboard** enables communication between all components
-- **Action Executor** provides a generic YAML-configured runtime for any orchestrator
+- **Mission Executor** provides a generic YAML-configured runtime for any orchestrator
 
 ## Architecture
 
@@ -34,7 +34,7 @@ This package provides a reusable framework for implementing hierarchical robot b
 │              inherits from                           │
 │   ┌──────────────────────────────────────────────┐   │
 │   │  BaseOrchestrator                            │   │
-│   │  - Cascade lifecycle management              │   │
+   │  - LifecycleNode management                  │   │
 │   │  - BehaviorRunner activation/deactivation    │   │
 │   │  - Status monitoring                         │   │
 │   └──────────────────────────────────────────────┘   │
@@ -68,12 +68,12 @@ Lifecycle node that loads and executes BehaviorTree XML files with plugin suppor
 - Loads BT plugins dynamically (e.g., `social_bt_nodes_plugin`)
 - Creates trees from XML files located in any package's share directory
 - Publishes execution status (SUCCESS, FAILURE, RUNNING)
-- Supports cascade lifecycle for coordinated activation
+- Supports standard ROS 2 lifecycle for coordinated activation
 
 ### BaseOrchestrator
 Base class for implementing FSM-based behavior coordination:
 - Manages high-level state transitions
-- Activates/deactivates BehaviorRunner nodes via cascade lifecycle
+- Activates/deactivates BehaviorRunner nodes via `activate_runner` / `deactivate_runner`
 - Monitors behavior execution status
 - Provides shared blackboard for inter-component communication
 
@@ -83,7 +83,7 @@ Base class for implementing FSM-based behavior coordination:
 - **Reusable BehaviorRunner**: Use in any package by specifying XML path and plugins
 - **Reusable Behavior Catalogue**: Library of tested, documented behaviors ready to use
 - **Extensible Orchestrator**: Implement custom FSM logic in derived classes
-- **Cascade Lifecycle Management**: Coordinated node activation/deactivation
+- **Lifecycle Management**: Coordinated node activation/deactivation via `rclcpp_lifecycle`
 - **Package-Agnostic XML**: Load behavior trees from any package
 - **Shared Blackboard**: Communication between orchestrator and BT nodes
 - **Status Monitoring**: Built-in behavior execution tracking
@@ -92,7 +92,7 @@ Base class for implementing FSM-based behavior coordination:
 
 ### Quick Start with Example
 
-This package includes complete examples that demonstrate the YAML-configured action executor:
+This package includes complete examples that demonstrate the YAML-configured mission executor:
 
 ```bash
 # Build the workspace
@@ -101,10 +101,10 @@ colcon build --packages-select behavior_architecture
 source install/setup.bash
 
 # Run the simple example (basic two-state FSM)
-ros2 launch behavior_architecture action_executor_simple.launch.py
+ros2 launch behavior_architecture mission_executor_simple.launch.py
 
 # Run the restaurant service example (more complex)
-ros2 launch behavior_architecture action_executor_restaurant.launch.py
+ros2 launch behavior_architecture mission_executor_restaurant.launch.py
 ```
 
 The examples demonstrate:
@@ -153,7 +153,7 @@ Or include them as SubTrees in your behavior XML files:
 
 ## Standard Workflow (Recommended)
 
-The recommended approach uses YAML configuration with the generic `action_executor`:
+The recommended approach uses YAML configuration with the generic `mission_executor`:
 
 #### ltiple BehaviorRunner nodes with different XML files
 - FSM-based orchestrator coordinating state transitions
@@ -239,18 +239,19 @@ protected:
     switch (state_) {
       case MyState::STATE_1:
         RCLCPP_INFO(get_logger(), "Transitioning to STATE_1");
-        add_activation("behavior_tree_node_1");
+        deactivate_all_runners();
+        activate_runner("behavior_tree_node_1");
         break;
       
       case MyState::STATE_2:
         RCLCPP_INFO(get_logger(), "Transitioning to STATE_2");
-        remove_activation("behavior_tree_node_1");
-        add_activation("behavior_tree_node_2");
+        deactivate_all_runners();
+        activate_runner("behavior_tree_node_2");
         break;
       
       case MyState::STOP:
         RCLCPP_INFO(get_logger(), "Stopping");
-        clear_activation();
+        deactivate_all_runners();
         break;
     }
   }
@@ -266,7 +267,7 @@ private:
 
 ```cpp
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_cascade_lifecycle/rclcpp_cascade_lifecycle.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "behavior_architecture/behavior_runner.hpp"
 #include "my_package/my_orchestrator.hpp"
 
@@ -312,9 +313,8 @@ add_executable(my_behavior_node src/main.cpp src/my_orchestrator.cpp)
 target_link_libraries(my_behavior_node behavior_architecture)
 ament_target_dependencies(my_behavior_node
   behavior_architecture
-  social_bt_nodes
   rclcpp
-  rclcpp_cascade_lifecycle
+  rclcpp_lifecycle
   behaviortree_cpp
 )
 
@@ -363,7 +363,7 @@ Add to your package's `package.xml`:
 ```xml
 <depend>behavior_architecture</depend>
 <depend>rclcpp</depend>
-<depend>rclcpp_cascade_lifecycle</depend>
+<depend>rclcpp_lifecycle</depend>
 <depend>behaviortree_cpp</depend>
 ```
 
@@ -376,7 +376,7 @@ add_executable(my_behavior_node src/main.cpp src/my_orchestrator.cpp)
 ament_target_dependencies(my_behavior_node
   behavior_architecture
   rclcpp
-  rclcpp_cascade_lifecycle
+  rclcpp_lifecycle
   behaviortree_cpp
 )
 ```
@@ -404,23 +404,23 @@ Callback for behavior status updates. Status is stored in `last_status_`.
 - `std::string last_status_` - Last received behavior status ("SUCCESS", "FAILURE", "RUNNING")
 - `int control_cycle_rate_ms_` - Control cycle period (default: 100ms)
 
-### Cascade Lifecycle Methods
+### Runner Management Methods
 
-From `rclcpp_cascade_lifecycle`:
-- `add_activation(const std::string& node_name)` - Activate a BT node
-- `remove_activation(const std::string& node_name)` - Deactivate a BT node
-- `clear_activation()` - Deactivate all BT nodes
+- `activate_runner(const std::string& runner_name)` - Activate a BehaviorRunner
+- `deactivate_runner(const std::string& runner_name)` - Deactivate a BehaviorRunner
+- `deactivate_all_runners()` - Deactivate all BehaviorRunners
 
 ## Dependencies
 
 This package requires the following ROS 2 packages:
 
 - `rclcpp`
-- `rclcpp_cascade_lifecycle` (from [cascade_lifecycle](https://github.com/fmrico/cascade_lifecycle))
+- `rclcpp_lifecycle`
 - `behaviortree_cpp` (BehaviorTree.CPP 4.x)
 - `std_msgs`
-- `std_srvs`
-- `social_bt_nodes` (optional, for example/plugins)
+- `ament_index_cpp`
+- `yaml-cpp`
+- `social_bt_nodes` (optional, runtime plugin only)
 
 ### Installing Dependencies
 
@@ -455,9 +455,9 @@ Files:
 
 ```bash
 cd ~/ros2_ws
-colAction Executor
+colMission Executor
 
-The `action_executor` is a generic executable that loads orchestrators and behaviors dynamically based on YAML configuration. This eliminates the need to write boilerplate main() programs for each robot application.
+The `mission_executor` is a generic executable that loads orchestrators and behaviors dynamically based on YAML configuration. This eliminates the need to write boilerplate main() programs for each robot application.
 
 ### Features
 
@@ -471,13 +471,63 @@ The `action_executor` is a generic executable that loads orchestrators and behav
 
 ```bash
 # Run with a specific configuration
-ros2 run behavior_architecture action_executor /path/to/config.yaml
+ros2 run behavior_architecture mission_executor /path/to/config.yaml
 
 # List available orchestrator types
-ros2 run behavior_architecture action_executor
+ros2 run behavior_architecture mission_executor
 ```
 
 See included examples for complete working configurations.
+
+## Orchestrator Modes
+
+There are two orchestrator modes, and **how you start a mission depends on which one you use**.
+
+### Fixed Orchestrators
+
+`SimpleOrchestrator`, `RestaurantOrchestrator`, and any custom orchestrator built from `BaseOrchestrator` start **automatically** when the lifecycle node transitions to ACTIVE. No external trigger is needed — the FSM begins executing its first state immediately in `on_activate()`.
+
+```
+ros2 launch behavior_architecture mission_executor_simple.launch.py
+# → mission starts by itself
+```
+
+### LLM Orchestrator (`LLMPlanOrchestrator`)
+
+`LLMPlanOrchestrator` exposes a `/start_mission` ROS 2 service and **waits** after activation. The FSM does not start until someone calls that service with the goal, context, and robot skills. This is intentional: the mission is dynamic and must be provided at runtime.
+
+To trigger a mission in LLM mode you have two options:
+
+**Option 1 — `test_start_mission` (provided helper)**
+
+An ephemeral node that reads a YAML file and calls `/start_mission` once, then exits:
+
+```bash
+ros2 run behavior_architecture test_start_mission \
+  --ros-args \
+  -p mission_file:=/path/to/llm_config.yaml \
+  -p skills_file:=/path/to/skills.yaml
+```
+
+The launch files (`llm_dummy_demo.launch.py`, `dummy_robot_llm.launch.py`) start this node automatically after a 3-second delay so `mission_executor` is ready.
+
+**Option 2 — call the service directly**
+
+```bash
+ros2 service call /start_mission llm_planner_interfaces/srv/StartMission \
+  "{goal: 'Greet the visitor and guide them to room 3',
+    context: 'Hospital reception area',
+    skills: ['Navigate to a location', 'Speak using text-to-speech']}"
+```
+
+In a real deployment, another node (e.g. an HRI component) would call `/start_mission` when appropriate, replacing `test_start_mission` entirely.
+
+#### Summary
+
+| Orchestrator type | Mission starts… | Trigger needed? |
+|---|---|---|
+| Fixed (`Simple`, `Restaurant`, custom) | Automatically on `ACTIVATE` | No |
+| LLM (`LLMPlanOrchestrator`) | On `/start_mission` service call | Yes |
 
 ## Included Examples
 
@@ -489,7 +539,7 @@ A minimal two-state FSM demonstration:
 - **STATE_1**: Prints "Hello from State 1"
 - **STATE_2**: Prints "Hello from State 2"
 
-Run: `ros2 launch behavior_architecture action_executor_simple.launch.py`
+Run: `ros2 launch behavior_architecture mission_executor_simple.launch.py`
 
 ### Restaurant Service Example
 
@@ -499,6 +549,6 @@ Demonstrates a practical two-state behavior system:
 1. **Follow Behavior**: Robot follows a person using vision
 2. **Collect Order**: Robot takes a food/drink order via speech
 
-Run: `ros2 launch behavior_architecture action_executor_restaurant.launch.py`
+Run: `ros2 launch behavior_architecture mission_executor_restaurant.launch.py`
 
 Both examples showcase the complete workflow from orchestrator implementation to YAML configuration and launch files.

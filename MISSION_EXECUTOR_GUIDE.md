@@ -1,6 +1,6 @@
-# Generic Action Executor
+# Generic Mission Executor
 
-The `action_executor` is a generic program that allows you to run behavior architectures configured through YAML files, eliminating the need for hardcoded main programs.
+The `mission_executor` is a generic program that allows you to run behavior architectures configured through YAML files, eliminating the need for hardcoded main programs.
 
 ## Overview
 
@@ -8,7 +8,7 @@ Instead of creating a separate main program for each orchestrator, you can now:
 1. Create your orchestrator class (inheriting from `BaseOrchestrator`)
 2. Register it with the `OrchestratorFactory`
 3. Create a YAML configuration file
-4. Run it with the generic `action_executor`
+4. Run it with the generic `mission_executor`
 
 ## Quick Start
 
@@ -16,20 +16,20 @@ Instead of creating a separate main program for each orchestrator, you can now:
 
 ```bash
 # Run with restaurant configuration
-ros2 launch behavior_architecture action_executor_restaurant.launch.py
+ros2 launch behavior_architecture mission_executor_restaurant.launch.py
 
 # Run with simple configuration
-ros2 launch behavior_architecture action_executor_simple.launch.py
+ros2 launch behavior_architecture mission_executor_simple.launch.py
 
 # Run with custom config file
-ros2 launch behavior_architecture action_executor.launch.py config_file:=/path/to/your/config.yaml
+ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/your/config.yaml
 ```
 
 ### Running Directly
 
 ```bash
 # Get the config file path from the installed package
-ros2 run behavior_architecture action_executor $(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/restaurant_config.yaml
+ros2 run behavior_architecture mission_executor $(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/restaurant_config.yaml
 ```
 
 ## Creating a New Action
@@ -105,7 +105,7 @@ void MyOrchestrator::go_to_state(int state)
 
 ### 2. Create Your Configuration File
 
-Create a YAML configuration file (e.g., `config/my_action_config.yaml`):
+Create a YAML configuration file (e.g., `config/my_mission_config.yaml`):
 
 ```yaml
 # Node name for the ROS blackboard node
@@ -137,12 +137,12 @@ behaviors:
 
 ### 3. Update CMakeLists.txt
 
-Add your orchestrator to the `action_executor` target:
+Add your orchestrator to the `mission_executor` target:
 
 ```cmake
-# Generic action executor (YAML-configured)
-add_executable(action_executor
-  src/action_executor.cpp
+# Generic mission executor (YAML-configured)
+add_executable(mission_executor
+  src/mission_executor.cpp
   src/examples/restaurant_orchestrator.cpp
   src/examples/simple_orchestrator.cpp
   src/examples/my_orchestrator.cpp  # Add your orchestrator here
@@ -151,7 +151,7 @@ add_executable(action_executor
 
 ### 4. Create a Launch File (Optional)
 
-Create a launch file for convenience (e.g., `launch/action_executor_my_action.launch.py`):
+Create a launch file for convenience (e.g., `launch/mission_executor_my_action.launch.py`):
 
 ```python
 #!/usr/bin/env python3
@@ -163,22 +163,22 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Launch the action executor with my custom configuration."""
+    """Launch the mission executor with my custom configuration."""
     
     pkg_dir = get_package_share_directory('behavior_architecture')
-    config_file = os.path.join(pkg_dir, 'config', 'my_action_config.yaml')
+    config_file = os.path.join(pkg_dir, 'config', 'my_mission_config.yaml')
     
-    action_executor_node = Node(
+    mission_executor_node = Node(
         package='behavior_architecture',
-        executable='action_executor',
-        name='action_executor_my_action',
+        executable='mission_executor',
+        name='mission_executor_my_action',
         output='screen',
         emulate_tty=True,
         arguments=[config_file]
     )
 
     return LaunchDescription([
-        action_executor_node
+        mission_executor_node
     ])
 ```
 
@@ -193,7 +193,7 @@ colcon build --packages-select behavior_architecture
 source install/setup.bash
 
 # Run your action
-ros2 launch behavior_architecture action_executor_my_action.launch.py
+ros2 launch behavior_architecture mission_executor_my_action.launch.py
 ```
 
 ## Configuration File Format
@@ -241,7 +241,7 @@ Make sure you:
 
 To see available orchestrator types:
 ```bash
-ros2 run behavior_architecture action_executor
+ros2 run behavior_architecture mission_executor
 ```
 
 ### "Failed to resolve file path"
