@@ -18,6 +18,9 @@
   <depend>yaml-cpp</depend>
   <depend>llm_planner_interfaces</depend>
   <depend>llm_bt_builder</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_msgs</depend>
+  <depend>tf2_ros</depend>
   
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

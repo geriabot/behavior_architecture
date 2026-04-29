@@ -19,6 +19,10 @@
 #include "llm_planner_interfaces/srv/start_mission.hpp"
 #include "yaml-cpp/yaml.h"
 
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "tf2_msgs/msg/tf_message.hpp"
+#include "rclcpp/qos.hpp"
+
 namespace
 {
 
@@ -152,7 +156,7 @@ int main(int argc, char ** argv)
   if (provider_count > 1) {
     RCLCPP_ERROR(
       node->get_logger(),
-      "Detected %zu providers for /start_mission. Keep only one orchestrator active (llm or mcp_llm).",
+      "Detected %zu providers for /start_mission. Keep only one orchestrator active (llm or mcp).",
       provider_count);
     rclcpp::shutdown();
     return 1;

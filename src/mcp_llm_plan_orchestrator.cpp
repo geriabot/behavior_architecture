@@ -26,6 +26,7 @@ namespace behavior_architecture
 {
 
 // Register MCP orchestrator aliases for A/B tests while keeping llm unchanged.
+static OrchestratorRegistrar<MCPLLMPlanOrchestrator> mcp_registrar("mcp");
 static OrchestratorRegistrar<MCPLLMPlanOrchestrator> mcp_llm_registrar("mcp_llm");
 static OrchestratorRegistrar<MCPLLMPlanOrchestrator> mcp_llm_plan_orchestrator_registrar("mcp_llm_plan_orchestrator");
 
@@ -336,6 +337,7 @@ void MCPLLMPlanOrchestrator::write_bt_failure_case(const BTFailureCase & case_en
 		out << "    \"mission_goal\": \"" << json_escape(c.mission_goal) << "\",\n";
 		out << "    \"step_goal\": \"" << json_escape(c.step_goal) << "\",\n";
 		out << "    \"step_id\": " << c.step_id << ",\n";
+		out << "    \"bt_xml\": \"" << json_escape(c.bt_xml) << "\",\n";
 		out << "    \"failure_cause\": \"" << json_escape(c.failure_cause) << "\",\n";
 		out << "    \"state\": \"" << json_escape(c.state) << "\",\n";
 		out << "    \"duration_sec\": " << c.duration_sec << ",\n";
@@ -377,6 +379,7 @@ void MCPLLMPlanOrchestrator::record_bt_failure_case(const std::string & failure_
 	if (case_entry.step_goal.empty()) {
 		case_entry.step_goal = "step_" + std::to_string(case_entry.step_id);
 	}
+	case_entry.bt_xml = last_bt_xml_;
 	case_entry.failure_cause = failure_cause;
 	case_entry.state = state_snapshot_;
 	case_entry.duration_sec = static_cast<int>((now() - step_start_time_).seconds());
@@ -810,6 +813,7 @@ void MCPLLMPlanOrchestrator::load_bt_failure_case_base()
 				if (case_entry.mission_goal.empty()) case_entry.mission_goal = extract_value("goal");
 				case_entry.step_goal = extract_value("step_goal");
 				if (case_entry.step_goal.empty()) case_entry.step_goal = "step_";
+				case_entry.bt_xml = extract_value("bt_xml");
 				case_entry.failure_cause = extract_value("failure_cause");
 				if (case_entry.failure_cause.empty()) case_entry.failure_cause = extract_value("reason");
 				case_entry.state = extract_value("state");

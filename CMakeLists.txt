@@ -7,6 +7,7 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
+
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -16,6 +17,9 @@ find_package(std_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(llm_planner_interfaces REQUIRED)
 find_package(llm_bt_builder REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 set(dependencies
   rclcpp
@@ -81,7 +85,17 @@ install(TARGETS mission_executor
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# 
+# Static TF publisher node
+
+# Static TF publisher node
+add_executable(static_tf_publisher src/static_tf_publisher.cpp)
+target_link_libraries(static_tf_publisher yaml-cpp)
+ament_target_dependencies(static_tf_publisher rclcpp geometry_msgs tf2_msgs tf2_ros)
+
+install(TARGETS static_tf_publisher
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Example: Restaurant orchestrator
 add_executable(restaurant_example
   src/examples/restaurant_main.cpp
@@ -123,9 +137,10 @@ install(TARGETS llm_plan_executor
 )
 
 # Client to send a mission to the LLM orchestrator
+
 add_executable(start_mission src/start_mission.cpp)
 target_link_libraries(start_mission yaml-cpp)
-ament_target_dependencies(start_mission rclcpp llm_planner_interfaces)
+ament_target_dependencies(start_mission rclcpp llm_planner_interfaces geometry_msgs tf2_msgs)
 
 install(TARGETS start_mission
   DESTINATION lib/${PROJECT_NAME}

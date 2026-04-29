@@ -30,6 +30,7 @@ namespace behavior_architecture
 inline bool is_llm_orchestrator_type(const std::string & orchestrator_type)
 {
   return orchestrator_type == "llm" ||
+         orchestrator_type == "mcp" ||
          orchestrator_type == "mcp_llm" ||
          orchestrator_type == "mcp_llm_plan_orchestrator";
 }
@@ -72,6 +73,13 @@ inline ActionConfig parse_config(const std::string & config_file)
       throw std::runtime_error("Missing required field: orchestrator_type");
     }
     config.orchestrator_type = yaml["orchestrator_type"].as<std::string>();
+    // Keep legacy aliases working while using a short canonical MCP type.
+    if (
+      config.orchestrator_type == "mcp_llm" ||
+      config.orchestrator_type == "mcp_llm_plan_orchestrator")
+    {
+      config.orchestrator_type = "mcp";
+    }
 
     if (yaml["package_name"]) {
       config.package_name = yaml["package_name"].as<std::string>();

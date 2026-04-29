@@ -94,6 +94,7 @@ private:
     std::string mission_goal;
     std::string step_goal;
     int step_id;
+    std::string bt_xml;
     std::string failure_cause;
     std::string state;
     int duration_sec;
