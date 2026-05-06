@@ -57,6 +57,35 @@ private:
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
   on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
 
+  struct StepMetrics {
+    int replan_id = 0;
+    int step_id = 0;
+    long plan_time_ms = 0;         // Just for the initial plan, not replans
+    long replan_time_ms = 0;       // For replans, time taken by the replan request
+    long bt_gen_time_ms = 0;       // Time taken to generate the BT for this step
+    long bt_exec_time_ms = 0;      // Time taken to execute the BT for this step
+    int fix_count = 0;             // Number of fixes applied to this step
+    std::string bt_status;         // SUCCESS/FAILED
+  };
+
+  struct RunMetrics {
+    long plan_total_time_ms = 0;
+    long replan_total_time_ms = 0;
+    long bt_gen_total_time_ms = 0;
+    long bt_exec_total_time_ms = 0; // Suma de tiempos de ejecución de BTs
+    int replan_count = 0;           // Número total de replans
+    int fix_count_total = 0;        // Número total de fixes
+    std::vector<StepMetrics> steps;
+  };
+
+  RunMetrics run_metrics_;
+  std::chrono::steady_clock::time_point plan_start_time_;
+  std::chrono::steady_clock::time_point replan_start_time_;
+  std::chrono::steady_clock::time_point bt_gen_start_time_;
+  int current_replan_id_ = 0;
+  int current_fix_count_ = 0;
+  void write_metrics_csv();
+
 protected:
   // ── FSM ──────────────────────────────────────────────────────────────────
   enum class State

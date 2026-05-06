@@ -85,8 +85,17 @@ install(TARGETS mission_executor
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# Static TF publisher node
+# Test Plan Orchestrator (test_plan_executor)
+add_executable(test_plan_executor
+  src/test_plan_executor_main.cpp
+  src/test_plan_orchestrator.cpp
+)
+target_link_libraries(test_plan_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(test_plan_executor ${dependencies})
 
+install(TARGETS test_plan_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
 # Static TF publisher node
 add_executable(static_tf_publisher src/static_tf_publisher.cpp)
 target_link_libraries(static_tf_publisher yaml-cpp)
@@ -133,6 +142,18 @@ target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
 ament_target_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
 
 install(TARGETS llm_plan_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+add_executable(llm_bt_executor
+  src/llm_bt_executor_main.cpp
+  src/llm_bt_orchestrator.cpp
+  src/yaml_utils.cpp
+)
+target_link_libraries(llm_bt_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(llm_bt_executor ${dependencies} llm_bt_builder)
+
+install(TARGETS llm_bt_executor
   DESTINATION lib/${PROJECT_NAME}
 )
 
