@@ -54,6 +54,7 @@ struct ActionConfig
   bool save_exec = false;           // persist generated BT XMLs to disk
   std::string exec_dir = "exec";    // base directory for execution logs
   std::string mission_name;         // human-readable mission identifier
+  bool restart_after_forced = true; // restart from step 0 on FORCED_FAILURE (vs replan)
 };
 
 /**
@@ -123,6 +124,9 @@ inline ActionConfig parse_config(const std::string & config_file)
       if (yaml["mission_name"]) {
         config.mission_name = yaml["mission_name"].as<std::string>();
       }
+      if (yaml["restart_after_forced"]) {
+        config.restart_after_forced = yaml["restart_after_forced"].as<bool>();
+      }
     } else {
       if (!yaml["behaviors"]) {
         throw std::runtime_error("Missing required field: behaviors");
@@ -171,6 +175,7 @@ inline void setup_blackboard_from_config(
     blackboard->set<bool>("llm_save_exec", config.save_exec);
     blackboard->set<std::string>("llm_exec_dir", config.exec_dir);
     blackboard->set<std::string>("llm_mission_name", config.mission_name);
+    blackboard->set<bool>("llm_restart_after_forced", config.restart_after_forced);
   } else {
     blackboard->set<std::vector<BehaviorConfig>>("behaviors_config", config.behaviors);
     blackboard->set<std::vector<std::string>>("plugin_libraries", config.plugin_libraries);

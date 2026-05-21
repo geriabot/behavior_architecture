@@ -71,6 +71,12 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
     mission_name_ = blackboard_->get<std::string>("llm_mission_name");
   } catch (...) {}
 
+  try {
+    restart_after_forced_ = blackboard_->get<bool>("llm_restart_after_forced");
+  } catch (...) {
+    restart_after_forced_ = true;  // default: keep original behavior
+  }
+
   // Build capabilities by concatenating node_descriptions of each bt_nodes_package.
   if (capabilities_yaml_.empty()) {
     std::vector<std::string> bt_nodes_pkgs;
@@ -310,7 +316,7 @@ void LLMPlanOrchestrator::control_cycle()
         }
       }
 
-      request_generate_bt(steps_[current_step_].objective_yaml);
+      advance_to_step(current_step_);
       break;
     }
 
@@ -344,6 +350,7 @@ void LLMPlanOrchestrator::control_cycle()
 
       try {
         last_bt_xml_ = result->bt_xml;
+        steps_[current_step_].cached_bt_xml = result->bt_xml;  // cache for FORCED_FAILURE restart
         auto it = runners_.find("llm_bt_runner");
         auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
         runner->set_bt(result->bt_xml);
@@ -420,9 +427,18 @@ void LLMPlanOrchestrator::control_cycle()
       // Check runner status via the published topic (already handled by base status_callback)
       if (!check_behavior_finished()) {break;}
 
-      const bool success = (last_status_ == "SUCCESS");
-      if (!success) {
-        last_failure_reason_ = collect_failure_reason();
+      // Always read and clear BB failure vars so they cannot bleed into future
+      // steps, and so that FORCED_FAILURE is detected even when the BT returns
+      // SUCCESS (e.g. ForcePlanFail is inside a Fallback branch that succeeds).
+      last_failure_reason_ = collect_failure_reason();
+      const bool forced_plan_restart = (last_failure_code_ == "FORCED_FAILURE");
+
+      // A FORCED_FAILURE overrides a BT SUCCESS: treat the step as not-success.
+      const bool success = (last_status_ == "SUCCESS") && !forced_plan_restart;
+      bool accepted_failure = false;
+      if (!forced_plan_restart && !success) {
+        accepted_failure =
+          (last_failure_reason_.find("NO_REAL_FAILURE") != std::string::npos);
       }
 
       if (save_exec_) {
@@ -430,7 +446,7 @@ void LLMPlanOrchestrator::control_cycle()
         for (auto & sm : run_metrics_.steps) {
           if (sm.replan_id == current_replan_id_ && sm.step_id == static_cast<int>(current_step_)) {
             sm.bt_exec_time_ms = bt_exec_elapsed;
-            sm.bt_status = success ? "SUCCESS" : "FAILED";
+            sm.bt_status = success ? "SUCCESS" : (forced_plan_restart ? "FORCED_RESTART" : (accepted_failure ? "FAILED_ACCEPTED" : "FAILED"));
             break;
           }
         }
@@ -439,10 +455,55 @@ void LLMPlanOrchestrator::control_cycle()
       deactivate_runner("llm_bt_runner");
       tree_loaded_ = false;
 
-      if (success) {
+      if (forced_plan_restart) {
+        // A BT node wrote FORCED_FAILURE — read fail_message from blackboard
+        std::string fail_message;
+        try {
+          fail_message = blackboard_->get<std::string>("fail_message");
+          blackboard_->set("fail_message", std::string{});  // clear after reading
+        } catch (...) {}
+        
+        // Append fail_message to the failure reason
+        if (!fail_message.empty()) {
+          last_failure_reason_ += " [FORCED_FAILURE: " + fail_message + "]";
+        }
+        
+        RCLCPP_WARN(
+          get_logger(),
+          "Step %zu emitted FORCED_FAILURE (BT returned %s) — %s: %s",
+          current_step_, last_status_.c_str(),
+          restart_after_forced_ ? "restarting plan from step 0" : "requesting replan",
+          last_failure_reason_.c_str());
+        
+        steps_[current_step_].cached_bt_xml.clear();  // prevent loop: force regeneration
+        publish_status("FORCED_PLAN_RESTART");
         bt_regeneration_count_ = 0;
-        RCLCPP_INFO(get_logger(), "Step %zu succeeded", current_step_);
-        publish_status("STEP_" + std::to_string(current_step_) + "_SUCCESS");
+        
+        if (restart_after_forced_) {
+          // Original behavior: restart from step 0
+          current_step_ = 0;
+          step_failure_history_.clear();
+          advance_to_step(0);
+        } else {
+          // Alternative: request a full replan
+          if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
+            request_replan();
+          } else {
+            publish_status("FAILED_NO_MORE_REPLANS");
+            transition_to(State::FAILED);
+          }
+        }
+      } else if (success || accepted_failure) {
+        bt_regeneration_count_ = 0;
+        if (accepted_failure) {
+          RCLCPP_WARN(
+            get_logger(), "Step %zu finished with FAILURE and NO_REAL_FAILURE cause, advancing: %s",
+            current_step_, last_failure_reason_.c_str());
+          publish_status("STEP_" + std::to_string(current_step_) + "_FAILED_ACCEPTED");
+        } else {
+          RCLCPP_INFO(get_logger(), "Step %zu succeeded", current_step_);
+          publish_status("STEP_" + std::to_string(current_step_) + "_SUCCESS");
+        }
         current_step_++;
         step_failure_history_.clear();  // history is per-step
 
@@ -451,7 +512,7 @@ void LLMPlanOrchestrator::control_cycle()
           publish_status("GOAL_SUCCESS");
           transition_to(State::SUCCESS);
         } else {
-          request_generate_bt(steps_[current_step_].objective_yaml);
+          advance_to_step(current_step_);
         }
       } else {
         RCLCPP_WARN(get_logger(), "Step %zu FAILED: %s", current_step_, last_failure_reason_.c_str());
@@ -499,6 +560,7 @@ void LLMPlanOrchestrator::control_cycle()
 
       try {
         last_bt_xml_ = result->bt_xml;
+        steps_[current_step_].cached_bt_xml = result->bt_xml;  // cache for FORCED_FAILURE restart
         auto it = runners_.find("llm_bt_runner");
         auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
         runner->set_bt(result->bt_xml);
@@ -604,7 +666,7 @@ void LLMPlanOrchestrator::control_cycle()
         }
       }
 
-      request_generate_bt(steps_[current_step_].objective_yaml);
+      advance_to_step(current_step_);
       break;
     }
   }
@@ -664,6 +726,33 @@ void LLMPlanOrchestrator::request_replan()
   transition_to(State::WAITING_REPLAN);
 }
 
+void LLMPlanOrchestrator::advance_to_step(std::size_t idx)
+{
+  const auto & step = steps_[idx];
+  if (!step.cached_bt_xml.empty()) {
+    RCLCPP_INFO(get_logger(), "Reusing cached BT for step %zu", idx);
+    last_bt_xml_ = step.cached_bt_xml;
+    auto it = runners_.find("llm_bt_runner");
+    auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
+    try {
+      runner->set_bt(step.cached_bt_xml);
+      last_status_ = "";
+      status_received_ = "";
+      activate_runner("llm_bt_runner");
+      tree_loaded_ = true;
+      step_start_time_ = now();
+      transition_to(State::EXECUTING_BT);
+      return;
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "Failed to reload cached BT for step %zu: %s — regenerating", idx, e.what());
+      steps_[idx].cached_bt_xml.clear();
+    }
+  }
+  request_generate_bt(step.objective_yaml);
+}
+
 void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml)
 {
   if (!generate_bt_client_->wait_for_service(std::chrono::seconds(0))) {
@@ -689,24 +778,54 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
 
   // Pass all actual blackboard vars from the memory
   std::string enriched_objective = objective_yaml;
+  if (current_step_ < steps_.size() && !steps_[current_step_].skills_used.empty()) {
+    enriched_objective = append_yaml_string_list(
+      enriched_objective, "skills_used", steps_[current_step_].skills_used);
+    RCLCPP_INFO(get_logger(), "Injecting %zu step skills_used for step %zu",
+      steps_[current_step_].skills_used.size(), current_step_);
+  }
   enriched_objective = behavior_architecture::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
 
   auto keys = blackboard_->getKeys();
   if (!keys.empty()) {
     std::string vars_block = "\navailable_blackboard_vars:";
+    std::string typed_vars_block = "\navailable_blackboard_vars_typed:";
     int injected_count = 0;
+    int injected_typed_count = 0;
     for (const auto & k : keys) {
       std::string key_str{k.data(), k.size()};
       if (key_str.empty() || key_str[0] == '_' || key_str == "bt_last_failure") continue;
       if (std::find(initial_blackboard_keys_.begin(), initial_blackboard_keys_.end(), key_str) != initial_blackboard_keys_.end()) continue;
-      
+
       vars_block += "\n  - " + key_str;
       injected_count++;
+
+      std::string type_name = "unknown";
+
+      auto entry = blackboard_->getEntry(key_str);
+      if (entry && entry->info.isStronglyTyped()) {
+        const auto & resolved_type = entry->info.typeName();
+        if (!resolved_type.empty()) {
+          type_name = resolved_type;
+          typed_vars_block += "\n  - key: " + key_str + "\n    type: " + type_name;
+          injected_typed_count++;
+        }
+      }
+
+      RCLCPP_INFO(
+        get_logger(),
+        "  -> BB var injected for GenerateBT: key='%s', type='%s'",
+        key_str.c_str(), type_name.c_str());
     }
     if (injected_count > 0) {
       enriched_objective += vars_block;
       RCLCPP_INFO(get_logger(), "Injecting %d available blackboard vars for step %zu",
         injected_count, current_step_);
+    }
+    if (injected_typed_count > 0) {
+      enriched_objective += typed_vars_block;
+      RCLCPP_INFO(get_logger(), "Injecting %d typed blackboard vars for step %zu",
+        injected_typed_count, current_step_);
     }
   }
 
@@ -714,8 +833,9 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
   request->bt_nodes_yaml = bt_nodes_yaml;
 
   // Log step name and port mappings
-  const std::string first_line = objective_yaml.substr(0, objective_yaml.find('\n'));
-  RCLCPP_INFO(get_logger(), "Requesting BT for step %zu: '%s'", current_step_, first_line.c_str());
+  RCLCPP_INFO(
+    get_logger(), "Requesting BT for step %zu/%zu: '%s'",
+    current_step_, steps_.size() - 1, steps_[current_step_].description.c_str());
 
   // Log expected outputs (ports this step will write to the blackboard)
   const auto & step_outputs = steps_[current_step_].outputs;
@@ -762,23 +882,53 @@ void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const s
   }
 
   std::string enriched_objective = steps_[current_step_].objective_yaml;
+  if (current_step_ < steps_.size() && !steps_[current_step_].skills_used.empty()) {
+    enriched_objective = append_yaml_string_list(
+      enriched_objective, "skills_used", steps_[current_step_].skills_used);
+    RCLCPP_INFO(get_logger(), "Injecting %zu step skills_used for step %zu (FixBT)",
+      steps_[current_step_].skills_used.size(), current_step_);
+  }
   enriched_objective = behavior_architecture::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
   auto keys = blackboard_->getKeys();
   if (!keys.empty()) {
     std::string vars_block = "\navailable_blackboard_vars:";
+    std::string typed_vars_block = "\navailable_blackboard_vars_typed:";
     int injected_count = 0;
+    int injected_typed_count = 0;
     for (const auto & k : keys) {
       std::string key_str{k.data(), k.size()};
       if (key_str.empty() || key_str[0] == '_' || key_str == "bt_last_failure") continue;
       if (std::find(initial_blackboard_keys_.begin(), initial_blackboard_keys_.end(), key_str) != initial_blackboard_keys_.end()) continue;
-      
+
       vars_block += "\n  - " + key_str;
       injected_count++;
+
+      std::string type_name = "unknown";
+
+      auto entry = blackboard_->getEntry(key_str);
+      if (entry && entry->info.isStronglyTyped()) {
+        const auto & resolved_type = entry->info.typeName();
+        if (!resolved_type.empty()) {
+          type_name = resolved_type;
+          typed_vars_block += "\n  - key: " + key_str + "\n    type: " + type_name;
+          injected_typed_count++;
+        }
+      }
+
+      RCLCPP_INFO(
+        get_logger(),
+        "  -> BB var injected for FixBT: key='%s', type='%s'",
+        key_str.c_str(), type_name.c_str());
     }
     if (injected_count > 0) {
       enriched_objective += vars_block;
       RCLCPP_INFO(get_logger(), "Injecting %d available blackboard vars for step %zu (FixBT)",
         injected_count, current_step_);
+    }
+    if (injected_typed_count > 0) {
+      enriched_objective += typed_vars_block;
+      RCLCPP_INFO(get_logger(), "Injecting %d typed blackboard vars for step %zu (FixBT)",
+        injected_typed_count, current_step_);
     }
   }
 
@@ -841,6 +991,11 @@ std::vector<LLMPlanOrchestrator::Step> LLMPlanOrchestrator::parse_plan(
       Step step;
       step.id = s["step_id"] ? s["step_id"].as<int>() : static_cast<int>(steps.size());
       step.description = s["description"] ? s["description"].as<std::string>() : "";
+      if (s["skills_used"]) {
+        for (const auto & skill : s["skills_used"]) {
+          step.skills_used.push_back(skill.as<std::string>());
+        }
+      }
       if (s["objective"]) {
         // Extract declared output variable names before serialising
         if (s["objective"]["outputs"]) {
@@ -872,7 +1027,7 @@ std::vector<LLMPlanOrchestrator::Step> LLMPlanOrchestrator::parse_plan(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BT failure diagnosis
+// BT failure falldiagnosis
 // ─────────────────────────────────────────────────────────────────────────────
 
 std::string LLMPlanOrchestrator::collect_failure_reason()

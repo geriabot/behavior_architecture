@@ -23,7 +23,6 @@ def launch_setup(context, *args, **kwargs):
         '--objective', LaunchConfiguration('objective_file'),
         '--bt-nodes-package', LaunchConfiguration('bt_nodes_package'),
         '--plugin-library', LaunchConfiguration('plugin_library'),
-        '--task-name', LaunchConfiguration('task_name'),
         '--exec-dir', LaunchConfiguration('exec_dir'),
         '--timeout-sec', LaunchConfiguration('timeout_sec'),
         '--control-period-ms', LaunchConfiguration('control_period_ms'),
@@ -79,10 +78,10 @@ def generate_launch_description():
     objectives_pkg = get_package_share_directory('llm_bt_builder')
     capabilities_pkg = get_package_share_directory('dummy_bt_nodes')
 
-    default_objective = os.path.join(objectives_pkg, 'objectives/recovery', 'detect_customer.yaml')
+    default_objective = os.path.join(objectives_pkg, 'objectives/paper', 'resolve_destination.yaml')
     default_exec_dir = os.path.join(os.getcwd(), 'exec', 'bt_generation_eval')
     default_capabilities = os.path.join(capabilities_pkg, 'node_descriptions', 'dummy_bt_nodes.yaml')
-    default_blackboard_seed = os.path.join(objectives_pkg, 'objectives/recovery', 'blackboard_seed.yaml')
+    default_blackboard_seed = os.path.join(objectives_pkg, 'objectives/paper', 'blackboard_seed.yaml')
     default_tf_file = ''
 
     try:
@@ -111,11 +110,6 @@ def generate_launch_description():
         'plugin_library',
         default_value='libdummy_bt_nodes_plugin.so',
         description='BehaviorTree plugin library used during execution.',
-    )
-    task_name_arg = DeclareLaunchArgument(
-        'task_name',
-        default_value='llm_bt_eval',
-        description='Name used for output directories and aggregate metrics.',
     )
     exec_dir_arg = DeclareLaunchArgument(
         'exec_dir',
@@ -173,7 +167,6 @@ def generate_launch_description():
         capabilities_arg,
         bt_nodes_package_arg,
         plugin_library_arg,
-        task_name_arg,
         exec_dir_arg,
         timeout_arg,
         control_period_arg,

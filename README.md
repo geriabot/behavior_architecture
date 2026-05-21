@@ -522,6 +522,18 @@ ros2 service call /start_mission llm_planner_interfaces/srv/StartMission \
 
 In a real deployment, another node (e.g. an HRI component) would call `/start_mission` when appropriate, replacing `test_start_mission` entirely.
 
+#### Planner Step Granularity
+
+`LLMPlanOrchestrator` executes one BT per plan step, so plan granularity directly controls BT complexity.
+
+- Prefer finer-grained plans for non-trivial missions (typically 5-10 steps).
+- Keep one primary intention per step (detect, navigate, capture, validate, deliver, etc.).
+- Split acquisition and later validation/decision into separate steps.
+- Use explicit dataflow between steps via `objective.outputs` in producer steps and
+  `objective.inputs` in consumer steps.
+
+This usually improves BT validity on first generation and makes `fix_bt` retries simpler.
+
 #### Summary
 
 | Orchestrator type | Mission starts… | Trigger needed? |

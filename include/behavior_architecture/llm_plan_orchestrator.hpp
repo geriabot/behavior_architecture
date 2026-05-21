@@ -119,7 +119,9 @@ protected:
     int id;
     std::string description;
     std::string objective_yaml;  // serialised objective: block passed to llm_bt_builder
+    std::vector<std::string> skills_used;  // skills declared at step level in the plan
     std::vector<std::string> outputs;  // declared output blackboard variable names
+    std::string cached_bt_xml;  // BT XML accepted and run successfully; reused on FORCED_FAILURE restart
   };
 
   std::string plan_yaml_;
@@ -165,6 +167,7 @@ protected:
   double bt_timeout_sec_;
   rclcpp::Time step_start_time_;
   std::string last_bt_xml_;  // The last XML correctly accepted to pass into FixBT
+  bool restart_after_forced_{true};  // restart from step 0 on FORCED_FAILURE (vs replan)
 
   // ── Execution saving ──────────────────────────────────────────────────────
   bool save_exec_{false};
@@ -181,6 +184,8 @@ protected:
   virtual void request_plan();
   virtual void request_replan();
   virtual void request_generate_bt(const std::string & objective_yaml);
+  // Load step `idx` using its cached BT XML if available, or call request_generate_bt otherwise.
+  void advance_to_step(std::size_t idx);
   virtual void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
 
   bool is_local_error(const std::string & reason);
