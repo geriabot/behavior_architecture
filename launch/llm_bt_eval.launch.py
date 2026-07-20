@@ -13,6 +13,8 @@ from launch_ros.actions import Node
 def launch_setup(context, *args, **kwargs):
     capabilities_yaml = LaunchConfiguration('capabilities_yaml').perform(context)
     blackboard_seed = LaunchConfiguration('blackboard_seed').perform(context)
+    useful_info = LaunchConfiguration('useful_info').perform(context)
+    task_name = LaunchConfiguration('task_name').perform(context)
     tf_file = LaunchConfiguration('tf_file').perform(context)
     publish_static_tf = LaunchConfiguration('publish_static_tf').perform(context).lower() == 'true'
     save_exec = LaunchConfiguration('save_exec').perform(context).lower() == 'true'
@@ -37,6 +39,16 @@ def launch_setup(context, *args, **kwargs):
     if blackboard_seed:
         executor_arguments.extend([
             '--blackboard-seed', LaunchConfiguration('blackboard_seed'),
+        ])
+
+    if useful_info:
+        executor_arguments.extend([
+            '--useful-info', LaunchConfiguration('useful_info'),
+        ])
+
+    if task_name:
+        executor_arguments.extend([
+            '--task-name', LaunchConfiguration('task_name'),
         ])
 
     if strict_inputs:
@@ -78,10 +90,11 @@ def generate_launch_description():
     objectives_pkg = get_package_share_directory('llm_bt_builder')
     capabilities_pkg = get_package_share_directory('dummy_bt_nodes')
 
-    default_objective = os.path.join(objectives_pkg, 'objectives/paper', 'resolve_destination.yaml')
+    default_objective = os.path.join(objectives_pkg, 'objectives/paper', 'follow_patient.yaml')
     default_exec_dir = os.path.join(os.getcwd(), 'exec', 'bt_generation_eval')
-    default_capabilities = os.path.join(capabilities_pkg, 'node_descriptions', 'dummy_bt_nodes.yaml')
+    default_capabilities = os.path.join(capabilities_pkg, 'node_descriptions', 'dummy_bt_nodes_extra.yaml')
     default_blackboard_seed = os.path.join(objectives_pkg, 'objectives/paper', 'blackboard_seed.yaml')
+    default_task_name = os.path.splitext(os.path.basename(default_objective))[0]
     default_tf_file = ''
 
     try:
@@ -136,6 +149,16 @@ def generate_launch_description():
         default_value=default_blackboard_seed,
         description='Optional YAML file with initial blackboard values for isolated step evaluation.',
     )
+    useful_info_arg = DeclareLaunchArgument(
+        'useful_info',
+        default_value='',
+        description='Optional useful_info text to append into objective prompt (same path used in runtime start_mission context).',
+    )
+    task_name_arg = DeclareLaunchArgument(
+        'task_name',
+        default_value=default_task_name,
+        description='Name used for run folders/metrics, mirroring runtime mission naming.',
+    )
     tf_file_arg = DeclareLaunchArgument(
         'tf_file',
         default_value=default_tf_file,
@@ -172,6 +195,8 @@ def generate_launch_description():
         control_period_arg,
         max_fixes_arg,
         blackboard_seed_arg,
+        useful_info_arg,
+        task_name_arg,
         tf_file_arg,
         publish_static_tf_arg,
         strict_objective_inputs_arg,

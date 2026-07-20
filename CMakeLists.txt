@@ -99,7 +99,7 @@ install(TARGETS test_plan_executor
 # Static TF publisher node
 add_executable(static_tf_publisher src/static_tf_publisher.cpp)
 target_link_libraries(static_tf_publisher yaml-cpp)
-ament_target_dependencies(static_tf_publisher rclcpp geometry_msgs tf2_msgs tf2_ros)
+ament_target_dependencies(static_tf_publisher rclcpp geometry_msgs tf2 tf2_msgs tf2_ros)
 
 install(TARGETS static_tf_publisher
   DESTINATION lib/${PROJECT_NAME}

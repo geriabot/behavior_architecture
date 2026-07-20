@@ -167,6 +167,7 @@ protected:
   double bt_timeout_sec_;
   rclcpp::Time step_start_time_;
   std::string last_bt_xml_;  // The last XML correctly accepted to pass into FixBT
+  bool replan_active_{true};       // enable/disable replanning after failures
   bool restart_after_forced_{true};  // restart from step 0 on FORCED_FAILURE (vs replan)
 
   // ── Execution saving ──────────────────────────────────────────────────────

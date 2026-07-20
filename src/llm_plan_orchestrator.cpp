@@ -76,6 +76,11 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
   } catch (...) {
     restart_after_forced_ = true;  // default: keep original behavior
   }
+  try {
+    replan_active_ = blackboard_->get<bool>("llm_replan_active");
+  } catch (...) {
+    replan_active_ = true;  // default: keep original behavior
+  }
 
   // Build capabilities by concatenating node_descriptions of each bt_nodes_package.
   if (capabilities_yaml_.empty()) {
@@ -700,6 +705,16 @@ void LLMPlanOrchestrator::request_plan()
 
 void LLMPlanOrchestrator::request_replan()
 {
+  if (!replan_active_) {
+    RCLCPP_WARN(
+      get_logger(),
+      "Replanning disabled (llm_replan_active=false). Failing mission at step %zu. Cause: %s",
+      current_step_, last_failure_reason_.c_str());
+    publish_status("REPLAN_DISABLED");
+    transition_to(State::FAILED);
+    return;
+  }
+
   if (!replan_client_->wait_for_service(std::chrono::seconds(0))) {
     RCLCPP_WARN(get_logger(), "replan_task service not available yet, will retry");
   }

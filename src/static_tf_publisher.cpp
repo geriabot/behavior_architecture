@@ -19,6 +19,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 #include "geometry_msgs/msg/transform_stamped.hpp"
+#include "tf2/LinearMath/Quaternion.hpp"
 #include "tf2_ros/static_transform_broadcaster.h"
 
 class StaticTFPublisher : public rclcpp::Node {
@@ -55,6 +56,7 @@ public:
     std::vector<geometry_msgs::msg::TransformStamped> static_transforms;
     for (const auto & t : doc["static_transforms"]) {
       geometry_msgs::msg::TransformStamped tf;
+      const double yaw = t["yaw"] ? t["yaw"].as<double>() : 0.0;
       
       // Use current time for the timestamp
       tf.header.stamp = this->get_clock()->now(); 
@@ -65,15 +67,16 @@ public:
       tf.transform.translation.y = t["y"] ? t["y"].as<double>() : 0.0;
       tf.transform.translation.z = t["z"] ? t["z"].as<double>() : 0.0;
       
-      // Default to identity rotation
-      tf.transform.rotation.x = 0.0;
-      tf.transform.rotation.y = 0.0;
-      tf.transform.rotation.z = 0.0;
-      tf.transform.rotation.w = 1.0;
+      tf2::Quaternion rotation;
+      rotation.setRPY(0.0, 0.0, yaw);
+      tf.transform.rotation.x = rotation.x();
+      tf.transform.rotation.y = rotation.y();
+      tf.transform.rotation.z = rotation.z();
+      tf.transform.rotation.w = rotation.w();
 
-      RCLCPP_INFO(this->get_logger(), "Loaded static TF: %s -> %s (x=%.2f, y=%.2f, z=%.2f)",
+      RCLCPP_INFO(this->get_logger(), "Loaded static TF: %s -> %s (x=%.2f, y=%.2f, z=%.2f, yaw=%.2f)",
         tf.header.frame_id.c_str(), tf.child_frame_id.c_str(),
-        tf.transform.translation.x, tf.transform.translation.y, tf.transform.translation.z);
+        tf.transform.translation.x, tf.transform.translation.y, tf.transform.translation.z, yaw);
 
       static_transforms.push_back(tf);
     }

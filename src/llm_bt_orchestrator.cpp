@@ -767,7 +767,9 @@ int LLMBTOrchestrator::append_dynamic_blackboard_vars(std::string & yaml_text) c
   }
 
   std::string vars_block = "\navailable_blackboard_vars:";
+  std::string typed_vars_block = "\navailable_blackboard_vars_typed:";
   int injected_count = 0;
+  int injected_typed_count = 0;
   for (const auto & key : keys) {
     std::string key_str{key.data(), key.size()};
     if (key_str.empty() || key_str[0] == '_' || key_str == "bt_last_failure" ||
@@ -786,11 +788,23 @@ int LLMBTOrchestrator::append_dynamic_blackboard_vars(std::string & yaml_text) c
     }
     vars_block += "\n  - " + key_str;
     injected_count++;
+
+        auto entry = blackboard_->getEntry(key_str);
+        if (entry && entry->info.isStronglyTyped()) {
+          const auto & resolved_type = entry->info.typeName();
+          if (!resolved_type.empty()) {
+            typed_vars_block += "\n  - key: " + key_str + "\n    type: " + resolved_type;
+            injected_typed_count++;
+          }
+        }
   }
 
   if (injected_count > 0) {
     yaml_text += vars_block;
   }
+      if (injected_typed_count > 0) {
+        yaml_text += typed_vars_block;
+      }
   return injected_count;
 }
 

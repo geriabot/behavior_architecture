@@ -19,6 +19,7 @@
   <depend>llm_planner_interfaces</depend>
   <depend>llm_bt_builder</depend>
   <depend>geometry_msgs</depend>
+  <depend>tf2</depend>
   <depend>tf2_msgs</depend>
   <depend>tf2_ros</depend>
   
