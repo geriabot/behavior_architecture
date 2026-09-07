@@ -56,6 +56,7 @@ struct ActionConfig
   std::string mission_name;         // human-readable mission identifier
   bool replan_active = true;        // allow requesting replans after failures
   bool restart_after_forced = true; // restart from step 0 on FORCED_FAILURE (vs replan)
+  bool stop_after_force_fail = false; // stop the mission on FORCED_FAILURE
 };
 
 /**
@@ -131,6 +132,9 @@ inline ActionConfig parse_config(const std::string & config_file)
       if (yaml["restart_after_forced"]) {
         config.restart_after_forced = yaml["restart_after_forced"].as<bool>();
       }
+      if (yaml["stop_after_force_fail"]) {
+        config.stop_after_force_fail = yaml["stop_after_force_fail"].as<bool>();
+      }
     } else {
       if (!yaml["behaviors"]) {
         throw std::runtime_error("Missing required field: behaviors");
@@ -181,6 +185,7 @@ inline void setup_blackboard_from_config(
     blackboard->set<std::string>("llm_mission_name", config.mission_name);
     blackboard->set<bool>("llm_replan_active", config.replan_active);
     blackboard->set<bool>("llm_restart_after_forced", config.restart_after_forced);
+    blackboard->set<bool>("llm_stop_after_force_fail", config.stop_after_force_fail);
   } else {
     blackboard->set<std::vector<BehaviorConfig>>("behaviors_config", config.behaviors);
     blackboard->set<std::vector<std::string>>("plugin_libraries", config.plugin_libraries);
