@@ -76,12 +76,6 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
   } catch (...) {
     restart_after_forced_ = true;  // default: keep original behavior
   }
-  // TEST
-  try {
-    stop_after_force_fail_ = blackboard_->get<bool>("llm_stop_after_force_fail");
-  } catch (...) {
-    stop_after_force_fail_ = false;  // default: keep original behavior
-  }
   try {
     replan_active_ = blackboard_->get<bool>("llm_replan_active");
   } catch (...) {
@@ -487,21 +481,16 @@ void LLMPlanOrchestrator::control_cycle()
           last_failure_reason_.c_str());
         
         steps_[current_step_].cached_bt_xml.clear();  // prevent loop: force regeneration
+        publish_status("FORCED_PLAN_RESTART");
         bt_regeneration_count_ = 0;
-
-        if (stop_after_force_fail_) {
-          RCLCPP_WARN(get_logger(), "Stopping mission after FORCED_FAILURE by configuration");
-          publish_status("FORCED_PLAN_STOP");
-          transition_to(State::FAILED);
-        } else if (restart_after_forced_) {
-          publish_status("FORCED_PLAN_RESTART");
+        
+        if (restart_after_forced_) {
           // Original behavior: restart from step 0
           current_step_ = 0;
           step_failure_history_.clear();
           advance_to_step(0);
         } else {
           // Alternative: request a full replan
-          publish_status("FORCED_PLAN_REPLAN");
           if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
             request_replan();
           } else {
