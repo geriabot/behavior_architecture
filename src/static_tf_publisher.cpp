@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+#include <cmath>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
@@ -67,12 +68,11 @@ public:
       tf.transform.translation.y = t["y"] ? t["y"].as<double>() : 0.0;
       tf.transform.translation.z = t["z"] ? t["z"].as<double>() : 0.0;
       
-      tf2::Quaternion rotation;
-      rotation.setRPY(0.0, 0.0, yaw);
-      tf.transform.rotation.x = rotation.x();
-      tf.transform.rotation.y = rotation.y();
-      tf.transform.rotation.z = rotation.z();
-      tf.transform.rotation.w = rotation.w();
+      const double yaw = t["yaw"] ? t["yaw"].as<double>() : 0.0;
+      tf.transform.rotation.x = 0.0;
+      tf.transform.rotation.y = 0.0;
+      tf.transform.rotation.z = std::sin(yaw / 2.0);
+      tf.transform.rotation.w = std::cos(yaw / 2.0);
 
       RCLCPP_INFO(this->get_logger(), "Loaded static TF: %s -> %s (x=%.2f, y=%.2f, z=%.2f, yaw=%.2f)",
         tf.header.frame_id.c_str(), tf.child_frame_id.c_str(),

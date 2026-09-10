@@ -14,6 +14,7 @@
 
 
 #include "behavior_architecture/behavior_runner.hpp"
+#include <stdexcept>
 
 namespace behavior_architecture
 {
@@ -37,6 +38,8 @@ BehaviorRunner::BehaviorRunner(
   executed_(false)
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner constructor (%s)", name.c_str());
+  declare_parameter("enable_groot_monitoring", true);
+  declare_parameter("groot_port", 5555);
   
   blackboard_->get("node", node_);
 
@@ -121,6 +124,9 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
   RCLCPP_DEBUG(get_logger(), "Getting node from blackboard");
   blackboard_->get("node", node_);
   RCLCPP_DEBUG(get_logger(), "Creating BT");
+  // Loggers must stop observing the old tree before it is replaced.
+  groot_publisher_.reset();
+  cout_logger_.reset();
   if (!bt_xml_.empty()) {
     tree_ = factory.createTreeFromText(bt_xml_, blackboard_);
     RCLCPP_DEBUG(get_logger(), "BT created from XML string");
@@ -130,6 +136,19 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
   }
 
   cout_logger_ = std::make_unique<BT::StdCoutLogger>(tree_);
+  if (get_parameter("enable_groot_monitoring").as_bool()) {
+    const auto port = get_parameter("groot_port").as_int();
+    try {
+      if (port < 1 || port > 65534) {
+        throw std::invalid_argument("groot_port must be between 1 and 65534");
+      }
+      groot_publisher_ = std::make_unique<BT::Groot2Publisher>(tree_, port);
+      RCLCPP_INFO(get_logger(), "Groot2 monitoring ready: localhost:%ld", port);
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(get_logger(), "Groot2 monitoring unavailable on port %ld: %s",
+        port, e.what());
+    }
+  }
 
   status_pub_->on_activate();
 
@@ -148,6 +167,7 @@ BehaviorRunner::on_deactivate(const rclcpp_lifecycle::State & /* previous_state 
   RCLCPP_INFO(get_logger(), "BehaviorRunner(%s) on_deactivate", get_name());
   
   timer_ = nullptr;
+  groot_publisher_.reset();
   cout_logger_.reset();
 
   // Publish DEACTIVATED status before deactivating the publisher
