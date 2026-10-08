@@ -57,7 +57,6 @@ public:
     std::vector<geometry_msgs::msg::TransformStamped> static_transforms;
     for (const auto & t : doc["static_transforms"]) {
       geometry_msgs::msg::TransformStamped tf;
-      const double yaw = t["yaw"] ? t["yaw"].as<double>() : 0.0;
       
       // Use current time for the timestamp
       tf.header.stamp = this->get_clock()->now(); 
