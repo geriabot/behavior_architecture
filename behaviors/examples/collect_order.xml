@@ -15,7 +15,7 @@
               timeout="10000"/>
       
       <!-- Check if ready -->
-      <YesNo name="CheckReady"
+      <AskYesNoQuestion name="CheckReady"
                     text="{ready_response}"
                     result="{ready_answer}"
                     service_name="/yesno_service"
@@ -111,7 +111,7 @@
       <input_port name="service_name"/>
       <input_port name="timeout"/>
     </Action>
-    <Action ID="YesNo">
+    <Action ID="AskYesNoQuestion">
       <input_port name="text"/>
       <input_port name="result"/>
       <input_port name="service_name"/>

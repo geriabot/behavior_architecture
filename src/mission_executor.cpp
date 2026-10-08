@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <dlfcn.h>
+#include <algorithm>
+#include <cctype>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
@@ -111,7 +113,7 @@ int main(int argc, char * argv[])
   if (argc < 2) {
     RCLCPP_ERROR(
       rclcpp::get_logger("mission_executor"),
-      "Usage: mission_executor <config_file.yaml>");
+      "Usage: mission_executor <config_file.yaml> [--save-exec] [--exec-dir PATH] [--replan-active true|false]");
     RCLCPP_INFO(
       rclcpp::get_logger("mission_executor"),
       "Available orchestrator types:");
@@ -126,11 +128,39 @@ int main(int argc, char * argv[])
   // ── Optional flags: --save-exec [--exec-dir PATH] ────────────────────────
   bool save_exec_flag = false;
   std::string exec_dir_flag;
+  bool replan_active_flag_set = false;
+  bool replan_active_flag = true;
+
+  const auto parse_bool_flag = [](std::string value, bool * parsed) -> bool {
+    std::transform(value.begin(), value.end(), value.begin(),
+      [](unsigned char c) {return static_cast<char>(std::tolower(c));});
+    if (value == "true" || value == "1" || value == "yes" || value == "on") {
+      *parsed = true;
+      return true;
+    }
+    if (value == "false" || value == "0" || value == "no" || value == "off") {
+      *parsed = false;
+      return true;
+    }
+    return false;
+  };
+
   for (int i = 2; i < argc; ++i) {
     if (std::string(argv[i]) == "--save-exec") {
       save_exec_flag = true;
     } else if (std::string(argv[i]) == "--exec-dir" && i + 1 < argc) {
       exec_dir_flag = argv[++i];
+    } else if (std::string(argv[i]) == "--replan-active" && i + 1 < argc) {
+      bool parsed = true;
+      if (!parse_bool_flag(argv[++i], &parsed)) {
+        RCLCPP_WARN(
+          rclcpp::get_logger("mission_executor"),
+          "Invalid value for --replan-active. Expected true/false, got '%s'. Keeping default/config value.",
+          argv[i]);
+        continue;
+      }
+      replan_active_flag_set = true;
+      replan_active_flag = parsed;
     }
   }
 
@@ -187,6 +217,7 @@ int main(int argc, char * argv[])
   // Apply CLI overrides
   if (save_exec_flag) {config.save_exec = true;}
   if (!exec_dir_flag.empty()) {config.exec_dir = exec_dir_flag;}
+  if (replan_active_flag_set) {config.replan_active = replan_active_flag;}
 
   // Store config in blackboard so orchestrator on_configure can create runners
   setup_blackboard_from_config(blackboard, config);

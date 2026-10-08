@@ -18,5 +18,26 @@ std::string append_yaml_multiline_block(const std::string& base, const std::stri
   return oss.str();
 }
 
+std::string append_yaml_string_list(
+  const std::string & base,
+  const std::string & key,
+  const std::vector<std::string> & values)
+{
+  if (values.empty()) {
+    return base;
+  }
+
+  std::ostringstream oss;
+  oss << base;
+  if (!base.empty() && base.back() != '\n') {
+    oss << "\n";
+  }
+  oss << key << ":\n";
+  for (const auto & value : values) {
+    oss << "  - " << value << "\n";
+  }
+  return oss.str();
+}
+
 
 } // namespace behavior_architecture

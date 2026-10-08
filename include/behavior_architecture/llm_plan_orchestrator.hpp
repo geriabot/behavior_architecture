@@ -56,6 +56,37 @@ private:
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
   on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
+
+  struct StepMetrics {
+    int replan_id = 0;
+    int step_id = 0;
+    long plan_time_ms = 0;         // Just for the initial plan, not replans
+    long replan_time_ms = 0;       // For replans, time taken by the replan request
+    long bt_gen_time_ms = 0;       // Time taken to generate the BT for this step
+    long bt_exec_time_ms = 0;      // Time taken to execute the BT for this step
+    int fix_count = 0;             // Number of fixes applied to this step
+    std::string bt_status;         // SUCCESS/FAILED
+  };
+
+  struct RunMetrics {
+    long plan_total_time_ms = 0;
+    long replan_total_time_ms = 0;
+    long bt_gen_total_time_ms = 0;
+    long bt_exec_total_time_ms = 0; // Suma de tiempos de ejecución de BTs
+    int replan_count = 0;           // Número total de replans
+    int fix_count_total = 0;        // Número total de fixes
+    std::vector<StepMetrics> steps;
+  };
+
+  RunMetrics run_metrics_;
+  std::chrono::steady_clock::time_point plan_start_time_;
+  std::chrono::steady_clock::time_point replan_start_time_;
+  std::chrono::steady_clock::time_point bt_gen_start_time_;
+  int current_replan_id_ = 0;
+  int current_fix_count_ = 0;
+  void write_metrics_csv();
+
+protected:
   // ── FSM ──────────────────────────────────────────────────────────────────
   enum class State
   {
@@ -68,6 +99,8 @@ private:
     SUCCESS,
     FAILED
   };
+
+protected:
 
   State state_{State::IDLE};
 
@@ -86,7 +119,9 @@ private:
     int id;
     std::string description;
     std::string objective_yaml;  // serialised objective: block passed to llm_bt_builder
+    std::vector<std::string> skills_used;  // skills declared at step level in the plan
     std::vector<std::string> outputs;  // declared output blackboard variable names
+    std::string cached_bt_xml;  // BT XML accepted and run successfully; reused on FORCED_FAILURE restart
   };
 
   std::string plan_yaml_;
@@ -132,6 +167,8 @@ private:
   double bt_timeout_sec_;
   rclcpp::Time step_start_time_;
   std::string last_bt_xml_;  // The last XML correctly accepted to pass into FixBT
+  bool replan_active_{true};       // enable/disable replanning after failures
+  bool restart_after_forced_{true};  // restart from step 0 on FORCED_FAILURE (vs replan)
 
   // ── Execution saving ──────────────────────────────────────────────────────
   bool save_exec_{false};
@@ -139,17 +176,18 @@ private:
   std::filesystem::path exec_run_dir_;
   std::filesystem::path current_plan_dir_;
 
-  // ── Callbacks & helpers ───────────────────────────────────────────────────
-  void control_cycle();
-
-  void handle_start_mission(
+protected:
+  // ── Extension hooks for MCP/specialized orchestrators ───────────────────
+  virtual void handle_start_mission(
     const llm_planner_interfaces::srv::StartMission::Request::SharedPtr req,
     llm_planner_interfaces::srv::StartMission::Response::SharedPtr resp);
 
-  void request_plan();
-  void request_replan();
-  void request_generate_bt(const std::string & objective_yaml);
-  void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
+  virtual void request_plan();
+  virtual void request_replan();
+  virtual void request_generate_bt(const std::string & objective_yaml);
+  // Load step `idx` using its cached BT XML if available, or call request_generate_bt otherwise.
+  void advance_to_step(std::size_t idx);
+  virtual void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
 
   bool is_local_error(const std::string & reason);
 
@@ -159,11 +197,15 @@ private:
 
   /// Collect a descriptive failure reason from the BT tree and blackboard.
   /// Must be called BEFORE haltTree() so node statuses are still valid.
-  std::string collect_failure_reason();
+  virtual std::string collect_failure_reason();
 
   void publish_status(const std::string & msg);
-  void transition_to(State new_state);
+  virtual void transition_to(State new_state);
   std::string state_name(State s) const;
+
+private:
+  // ── Callbacks & helpers ───────────────────────────────────────────────────
+  void control_cycle();
 };
 
 }  // namespace behavior_architecture

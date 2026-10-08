@@ -22,6 +22,7 @@ bt_nodes_packages:
   - "dummy_bt_nodes"
 bt_control_period_ms: 50
 bt_timeout_sec: 60.0
+replan_active: true
 
 # LLM provider settings — can be different for each component
 # planner: responsible for breaking the goal into a sequence of steps

@@ -39,6 +39,7 @@ def launch_setup(context, *args, **kwargs):
     skills_file     = LaunchConfiguration('skills_file').perform(context)
     launch_llm_nodes = LaunchConfiguration('launch_llm_nodes').perform(context).lower() == 'true'
     save_exec = LaunchConfiguration('save_exec').perform(context).lower() == 'true'
+    replan_active = LaunchConfiguration('replan_active').perform(context)
 
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
@@ -96,10 +97,11 @@ def launch_setup(context, *args, **kwargs):
     executor_args = [config_file]
     if save_exec:
         executor_args.append('--save-exec')
+    executor_args.extend(['--replan-active', replan_active])
     nodes.append(Node(
         package='behavior_architecture',
-        executable='action_executor',
-        name='action_executor',
+        executable='mission_executor',
+        name='mission_executor',
         output='screen',
         emulate_tty=True,
         arguments=executor_args,
@@ -177,10 +179,20 @@ def generate_launch_description():
         ),
     )
 
+    replan_active_arg = DeclareLaunchArgument(
+        'replan_active',
+        default_value='true',
+        description=(
+            'Enable mission replanning after execution/generation failures. '
+            'Set to "false" to disable replans (FixBT remains enabled).'
+        ),
+    )
+
     return LaunchDescription([
         config_file_arg,
         skills_file_arg,
         launch_llm_nodes_arg,
         save_exec_arg,
+        replan_active_arg,
         OpaqueFunction(function=launch_setup),
     ])

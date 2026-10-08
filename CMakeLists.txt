@@ -7,6 +7,7 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
+
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -16,6 +17,9 @@ find_package(std_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(llm_planner_interfaces REQUIRED)
 find_package(llm_bt_builder REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 set(dependencies
   rclcpp
@@ -69,6 +73,7 @@ install(DIRECTORY config/
 add_executable(mission_executor
   src/mission_executor.cpp
   src/llm_plan_orchestrator.cpp
+  src/mcp_llm_plan_orchestrator.cpp
   src/yaml_utils.cpp
   src/examples/restaurant_orchestrator.cpp
   src/examples/simple_orchestrator.cpp
@@ -80,7 +85,26 @@ install(TARGETS mission_executor
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# 
+# Test Plan Orchestrator (test_plan_executor)
+add_executable(test_plan_executor
+  src/test_plan_executor_main.cpp
+  src/test_plan_orchestrator.cpp
+)
+target_link_libraries(test_plan_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(test_plan_executor ${dependencies})
+
+install(TARGETS test_plan_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+# Static TF publisher node
+add_executable(static_tf_publisher src/static_tf_publisher.cpp)
+target_link_libraries(static_tf_publisher yaml-cpp)
+ament_target_dependencies(static_tf_publisher rclcpp geometry_msgs tf2 tf2_msgs tf2_ros)
+
+install(TARGETS static_tf_publisher
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Example: Restaurant orchestrator
 add_executable(restaurant_example
   src/examples/restaurant_main.cpp
@@ -111,6 +135,7 @@ install(TARGETS simple_example
 add_executable(llm_plan_executor
   src/llm_plan_executor_main.cpp
   src/llm_plan_orchestrator.cpp
+  src/mcp_llm_plan_orchestrator.cpp
   src/yaml_utils.cpp
 )
 target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
@@ -120,10 +145,23 @@ install(TARGETS llm_plan_executor
   DESTINATION lib/${PROJECT_NAME}
 )
 
+add_executable(llm_bt_executor
+  src/llm_bt_executor_main.cpp
+  src/llm_bt_orchestrator.cpp
+  src/yaml_utils.cpp
+)
+target_link_libraries(llm_bt_executor ${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(llm_bt_executor ${dependencies} llm_bt_builder)
+
+install(TARGETS llm_bt_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Client to send a mission to the LLM orchestrator
+
 add_executable(start_mission src/start_mission.cpp)
 target_link_libraries(start_mission yaml-cpp)
-ament_target_dependencies(start_mission rclcpp llm_planner_interfaces)
+ament_target_dependencies(start_mission rclcpp llm_planner_interfaces geometry_msgs tf2_msgs)
 
 install(TARGETS start_mission
   DESTINATION lib/${PROJECT_NAME}
