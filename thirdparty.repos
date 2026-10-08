@@ -2,8 +2,12 @@ repositories:
   cascade_lifecycle:
     type: git
     url: https://github.com/fmrico/cascade_lifecycle.git
-    version: main
-  social_bt_nodes:
+    version: jazzy-devel
+  llm_bt_builder:
     type: git
-    url: https://github.com/rodperex/social_bt_nodes.git
+    url: https://github.com/rodperex/llm_bt_builder.git
+    version: main
+  llm_planner:
+    type: git
+    url: https://github.com/rodperex/llm_planner.git
     version: main

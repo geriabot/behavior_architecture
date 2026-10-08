@@ -429,6 +429,9 @@ This package requires the following ROS 2 packages:
 cd ~/ros2_ws/src
 vcs import < behavior_architecture/thirdparty.repos
 
+# Optional: BT node libraries used by the example configs (brings NAO dependencies)
+vcs import < behavior_architecture/examples.repos
+
 # Build workspace
 cd ~/ros2_ws
 colcon build

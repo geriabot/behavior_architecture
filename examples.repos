@@ -1,0 +1,9 @@
+# Optional BT node libraries used by the example configs (config/simple_config.yaml,
+# config/restaurant_config.yaml) and by the LLM orchestrators' default plugin list.
+# Not needed to build behavior_architecture. social_bt_nodes brings NAO dependencies
+# (see its own thirdparty.repos).
+repositories:
+  social_bt_nodes:
+    type: git
+    url: https://github.com/rodperex/social_bt_nodes.git
+    version: main
