@@ -23,6 +23,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "std_msgs/msg/string.hpp"
+#include <mutex>
+
 #include "behaviortree_cpp/behavior_tree.h"
 #include "behaviortree_cpp/bt_factory.h"
 #include "behaviortree_cpp/loggers/bt_cout_logger.h"
@@ -108,6 +110,9 @@ private:
   BT::Blackboard::Ptr blackboard_;
   std::string bt_xml_;  // if non-empty, on_activate uses createTreeFromText instead of file
   BT::Tree tree_;
+  // The tree is ticked by this runner's timer and halted (on_deactivate) from the
+  // orchestrator's thread: BehaviorTree.CPP trees are not thread-safe
+  std::mutex tree_mutex_;
   std::unique_ptr<BT::StdCoutLogger> cout_logger_;
   std::unique_ptr<BT::Groot2Publisher> groot_publisher_;
   BT::NodeStatus status_;

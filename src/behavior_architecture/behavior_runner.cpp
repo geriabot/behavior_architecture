@@ -55,6 +55,7 @@ void
 BehaviorRunner::control_cycle()
 {
   std_msgs::msg::String msg;
+  std::lock_guard<std::mutex> lock(tree_mutex_);
 
   if (!executed_) {
     RCLCPP_DEBUG(get_logger(), "BehaviorRunner ticking tree (%s)", get_name());
@@ -124,6 +125,7 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
   RCLCPP_DEBUG(get_logger(), "Getting node from blackboard");
   blackboard_->get("node", node_);
   RCLCPP_DEBUG(get_logger(), "Creating BT");
+  std::lock_guard<std::mutex> lock(tree_mutex_);
   // Loggers must stop observing the old tree before it is replaced.
   groot_publisher_.reset();
   cout_logger_.reset();
@@ -167,8 +169,12 @@ BehaviorRunner::on_deactivate(const rclcpp_lifecycle::State & /* previous_state 
   RCLCPP_INFO(get_logger(), "BehaviorRunner(%s) on_deactivate", get_name());
   
   timer_ = nullptr;
-  groot_publisher_.reset();
-  cout_logger_.reset();
+  {
+    // The loggers observe the tree: wait for a tick in progress
+    std::lock_guard<std::mutex> lock(tree_mutex_);
+    groot_publisher_.reset();
+    cout_logger_.reset();
+  }
 
   // Publish DEACTIVATED status before deactivating the publisher
   std_msgs::msg::String msg;
@@ -185,6 +191,8 @@ BehaviorRunner::on_deactivate(const rclcpp_lifecycle::State & /* previous_state 
 void
 BehaviorRunner::refresh()
 {
+  // Waits for a tick in progress in the timer thread
+  std::lock_guard<std::mutex> lock(tree_mutex_);
   executed_ = false;
   status_ = BT::NodeStatus::IDLE;
 
