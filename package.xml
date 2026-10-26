@@ -15,6 +15,8 @@
   <depend>behaviortree_cpp</depend>
   <depend>std_msgs</depend>
   <depend>yaml-cpp</depend>
+  <!-- Optional: only the LLM orchestrators need them (llm.repos); without them in the
+       workspace, the base is built alone (colcon orders only the packages it finds) -->
   <depend>llm_planner_interfaces</depend>
   <depend>llm_bt_builder</depend>
   <depend>geometry_msgs</depend>

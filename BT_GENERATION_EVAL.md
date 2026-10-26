@@ -1,5 +1,11 @@
 # LLM BT Generation Evaluation
 
+> Requires the optional LLM orchestrators: import `llm.repos` and build
+> ([README](README.md#with-the-llm-orchestrators)). The default objective and capabilities of
+> `llm_bt_eval.launch.py` come from llm_bt_builder and
+> [dummy_bt_nodes](https://github.com/rodperex/dummy_bt_nodes), and its static transforms from
+> [dummy_robot](https://github.com/geriabot/dummy_robot) when it is installed.
+
 This workflow isolates Behavior Tree generation and repair from task planning.
 It is intended for controlled experiments where the input is a single objective YAML and the outputs are:
 

@@ -132,8 +132,8 @@ def generate_launch_description():
     Nodes started:
       1. llm_planner_node    — generates and replans task YAML via LLM        (optional)
       2. llm_bt_agent_node   — generates BT XML from a step description via LLM (optional)
-      3. llm_plan_executor   — orchestrates planning, BT generation, and BT execution
-      4. test_start_mission  — sends the initial mission (after a 3 s delay)
+      3. mission_executor    — runs the orchestrator of the config (planning, BT generation, execution)
+      4. start_mission       — sends the initial mission (after a 3 s delay)
 
     All configuration (LLM provider/model/key, BT parameters, goal, context)
     is loaded from a single YAML file using the unified format shared with the

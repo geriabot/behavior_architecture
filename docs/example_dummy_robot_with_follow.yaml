@@ -1,4 +1,5 @@
 # Example: Using follow_behavior from behavior_architecture in dummy_robot
+# (https://github.com/geriabot/dummy_robot)
 
 # This config demonstrates how to use reusable behaviors from 
 # behavior_architecture package alongside dummy_robot's own behaviors
@@ -34,4 +35,4 @@ behaviors:
     control_period_ms: 50
 
 # The orchestrator can now activate "follow_runner" just like any other runner
-# Example: activateRunner("follow_runner");
+# Example: activate_runner("follow_runner");

@@ -1,6 +1,10 @@
-# Behavior Architecture Documentation
+# LLM Orchestrators
 
-This package contains a family of ROS 2 orchestrators for task planning and BT generation/repair evaluation in robotics systems.
+behavior_architecture includes a family of orchestrators that plan a mission and generate, run and
+repair its Behavior Trees with a language model. They are optional: they are built only when
+`llm_planner_interfaces` and `llm_bt_builder` are in the workspace (import `llm.repos`, see the
+[README](README.md#with-the-llm-orchestrators)). The base framework (BaseOrchestrator,
+BehaviorRunner, `mission_executor`) is described in the [README](README.md#how-it-works).
 
 ## Overview
 
@@ -149,18 +153,29 @@ All orchestrators read configuration from the BT::Blackboard:
 
 | Key | Type | Default | Used By |
 |-----|------|---------|---------|
-| `llm_objective_path` | string | - | LLMBTOrchestrator |
-| `llm_task_name` / `llm_mission_name` | string | "llm_eval" | All |
-| `llm_use_episodic_memory` | bool | false | LLMBTOrchestrator |
+| `llm_plugin_libraries` | vector<string> | `{"libsocial_bt_nodes_plugin.so"}` | All |
+| `llm_bt_nodes_packages` | vector<string> | none | All (capabilities from `<pkg>/node_descriptions/<pkg>.yaml`) |
+| `llm_capabilities_yaml` | string | - | All (overrides `llm_bt_nodes_packages`) |
 | `llm_control_period_ms` | int | 50 | All |
 | `llm_timeout_sec` | double | 30.0 | All |
-| `llm_advance_on_failure` | bool | false | LLMPlanOrchestrator |
-| `llm_capabilities_yaml` | string | - | All |
-| `llm_plugin_libraries` | vector<string> | `{"libsocial_bt_nodes_plugin.so"}` | All |
-| `llm_bt_nodes_packages` | vector<string> | `{"social_bt_nodes"}` | All |
-| `llm_save_exec` | bool | true | All |
-| `llm_exec_dir` | string | "exec" | All |
+| `llm_save_exec` | bool | false (plan), true (BT) | All |
+| `llm_exec_dir` | string | `exec` (plan), `exec/bt_generation_eval` (BT) | All |
+| `llm_mission_name` | string | - | LLMPlanOrchestrator; alias of `llm_task_name` in LLMBTOrchestrator |
+| `llm_skills` | vector<string> | - | LLMPlanOrchestrator |
+| `llm_replan_active` | bool | true | LLMPlanOrchestrator |
+| `llm_restart_after_forced` | bool | true | LLMPlanOrchestrator |
+| `llm_mcp_context_dir` | string | `<llm_exec_dir>/mcp_context` | MCPLLMPlanOrchestrator |
+| `llm_task_name` | string | - | LLMBTOrchestrator |
+| `llm_objective_path` | string | - | LLMBTOrchestrator |
+| `llm_useful_info` | string | - | LLMBTOrchestrator |
+| `llm_blackboard_seed_path` | string | - | LLMBTOrchestrator |
+| `llm_fail_on_missing_inputs` | bool | false | LLMBTOrchestrator |
+| `llm_shutdown_on_completion` | bool | true | LLMBTOrchestrator |
+| `llm_use_episodic_memory` | bool | false | LLMBTOrchestrator |
 | `llm_max_bt_regenerations` | int | 3 | LLMBTOrchestrator |
+
+`mission_executor` fills the keys of the plan orchestrators from the YAML (see
+`config/llm_config.yaml`); `llm_bt_executor` fills those of LLMBTOrchestrator from its command line.
 
 ### CLI Usage (LLMBTOrchestrator)
 
@@ -217,7 +232,7 @@ behavior_architecture/
 │   ├── orchestrator_factory.hpp        (Registration & creation)
 │   └── ...
 ├── src/
-│   ├── base_orchestrator.cpp
+│   ├── behavior_architecture/          (base: BaseOrchestrator, BehaviorRunner, factory)
 │   ├── llm_plan_orchestrator.cpp       (~1032 lines, core logic)
 │   ├── mcp_llm_plan_orchestrator.cpp   (~995 lines, MCP extensions)
 │   ├── llm_bt_orchestrator.cpp         (~900 lines, isolated BT)
@@ -255,7 +270,12 @@ To create a new orchestrator (e.g., `SecurityAwareLLMPlanOrchestrator`):
    static OrchestratorRegistrar<SecurityAwareLLMPlanOrchestrator> registrar("security_aware");
    ```
 
-5. **Update CMakeLists.txt** to include your new file
+5. **Build it** as a shared library of your package, linked to `llm_bt_builder` and
+   `llm_planner_interfaces`, and name it in `orchestrator_libraries` of the YAML (see
+   [docs/CUSTOM_ORCHESTRATORS.md](docs/CUSTOM_ORCHESTRATORS.md)). The LLM orchestrators of this
+   package are compiled into `mission_executor` only, so the derived class needs their sources or
+   its own copy; inside this package, add the file to the `if(WITH_LLM_ORCHESTRATORS)` block of
+   `CMakeLists.txt`.
 
 ---
 

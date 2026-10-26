@@ -27,7 +27,7 @@ Create your new behavior file:
     When you need autonomous navigation to named locations or coordinates
     
     Required Plugins:
-    - social_bt_nodes_plugin (for navigation nodes)
+    - libsocial_bt_nodes_plugin.so (for navigation nodes)
     
     Parameters:
     - goal_name (string, required): Name of the goal location
@@ -50,39 +50,31 @@ Create your new behavior file:
 
 ## Step 2: Test Your Behavior
 
-Create a test YAML configuration:
+The `simple` example orchestrator runs the runner `state1_runner` (retrying it while it fails) and
+then `state2_runner`. Give your tree the first name in a test configuration:
 
 ```yaml
 # config/test_navigate_config.yaml
-orchestrator:
-  type: "simple"
-  control_period_ms: 100
-
+orchestrator_type: "simple"
+package_name: "behavior_architecture"
+plugin_libraries:
+  - "libsocial_bt_nodes_plugin.so"
 behaviors:
-  - name: "navigate_runner"
+  - name: "state1_runner"
     behavior_file: "behaviors/examples/navigate_to_goal.xml"
     control_period_ms: 100
-
-plugin_libs:
-  - "social_bt_nodes_plugin"
-
-states:
-  NAVIGATE:
-    behavior_runner: "navigate_runner"
-    transitions:
-      SUCCESS: "IDLE"
-      FAILURE: "ERROR"
+  - name: "state2_runner"
+    behavior_file: "behaviors/examples/state2.xml"
 ```
 
 Test it:
 
 ```bash
-cd ~/social_nao_ws
 colcon build --packages-select behavior_architecture
 source install/setup.bash
 
-ros2 launch behavior_architecture mission_executor.launch.py \
-  config_file:=config/test_navigate_config.yaml
+ros2 run behavior_architecture mission_executor \
+  $(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/test_navigate_config.yaml
 ```
 
 ## Step 3: Refine and Parameterize
@@ -119,7 +111,7 @@ mv examples/navigate_to_goal.xml reusable/navigate_to_goal.xml
 
 ## Step 5: Update Documentation
 
-### Add to [behaviors/README.md](behaviors/README.md)
+### Add to [behaviors/README.md](../behaviors/README.md)
 
 Add an entry in the "Available Reusable Behaviors" section:
 
@@ -257,6 +249,6 @@ Before moving a behavior to `reusable/`, verify:
 ## Need Help?
 
 - Check existing reusable behaviors in `behaviors/reusable/` for examples
-- Review [behaviors/README.md](behaviors/README.md) for detailed guidelines
-- See [docs/USING_REUSABLE_BEHAVIORS.md](docs/USING_REUSABLE_BEHAVIORS.md) for usage patterns
+- Review [behaviors/README.md](../behaviors/README.md) for detailed guidelines
+- See [USING_REUSABLE_BEHAVIORS.md](USING_REUSABLE_BEHAVIORS.md) for usage patterns
 - Look at BehaviorTree.CPP documentation: https://www.behaviortree.dev/
