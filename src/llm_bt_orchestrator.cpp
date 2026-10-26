@@ -847,7 +847,7 @@ void LLMBTOrchestrator::request_generate_bt()
   request->bt_nodes_yaml = bt_nodes_yaml;
 
   RCLCPP_INFO(get_logger(), "Requesting BT generation for objective '%s'", objective_name_.c_str());
-  gen_bt_future_ = generate_bt_client_->async_send_request(request);
+  gen_bt_future_ = generate_bt_client_->async_send_request(request).future.share();
   transition_to(State::GENERATING_BT);
 }
 
@@ -895,7 +895,7 @@ void LLMBTOrchestrator::request_fix_bt(const std::string & broken_xml, const std
 
   RCLCPP_WARN(get_logger(), "Requesting BT fix attempt %d: %s",
     bt_regeneration_count_, error_msg.c_str());
-  fix_bt_future_ = fix_bt_client_->async_send_request(request);
+  fix_bt_future_ = fix_bt_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_FIX_BT);
 }
 

@@ -699,7 +699,7 @@ void LLMPlanOrchestrator::request_plan()
   RCLCPP_INFO(get_logger(), "Requesting plan for goal: '%s'", goal_.c_str());
   RCLCPP_INFO(get_logger(), "  → context: '%s'", context_.c_str());
   plan_start_time_ = std::chrono::steady_clock::now();
-  plan_future_ = plan_client_->async_send_request(request);
+  plan_future_ = plan_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_PLAN);
 }
 
@@ -737,7 +737,7 @@ void LLMPlanOrchestrator::request_replan()
     replan_count_, current_step_, last_failure_reason_.c_str());
   // Take replan_start_time_ right before sending the replan request (for metrics)
   replan_start_time_ = std::chrono::steady_clock::now();
-  replan_future_ = replan_client_->async_send_request(request);
+  replan_future_ = replan_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_REPLAN);
 }
 
@@ -861,7 +861,7 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
   }
   // Take BT generation start time right before sending the request (for metrics)
   bt_gen_start_time_ = std::chrono::steady_clock::now();
-  gen_bt_future_ = generate_bt_client_->async_send_request(request);
+  gen_bt_future_ = generate_bt_client_->async_send_request(request).future.share();
   transition_to(State::GENERATING_BT);
 }
 
@@ -955,7 +955,7 @@ void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const s
   RCLCPP_WARN(get_logger(), "Requesting FixBT for step %zu (attempt %d). Error: %s",
               current_step_, bt_regeneration_count_, error_msg.c_str());
 
-  fix_bt_future_ = fix_bt_client_->async_send_request(request);
+  fix_bt_future_ = fix_bt_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_FIX_BT);
 }
 
