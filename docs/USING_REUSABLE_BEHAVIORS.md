@@ -75,22 +75,14 @@ In your C++ orchestrator:
 
 ```cpp
 #include "behavior_architecture/behavior_runner.hpp"
-#include <ament_index_cpp/get_package_share_directory.hpp>
 
-// Create runner for follow behavior
-BehaviorRunnerConfig follow_config;
-follow_config.name = "follow_runner";
-follow_config.xml_file_path = "behaviors/reusable/follow_behavior.xml";
-follow_config.plugin_libs = {"social_bt_nodes_plugin"};
-follow_config.tree_name = "FollowBehavior";
-follow_config.control_period_ms = 50;
-
-auto follow_runner = std::make_shared<BehaviorRunner>(
-    follow_config,
-    shared_blackboard_
-);
-
-addBehaviorRunner(follow_runner);
+// Before the orchestrator is configured (e.g. in its constructor)
+auto follow_runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+  blackboard_, "follow_runner", "behaviors/reusable/follow_behavior.xml",
+  std::vector<std::string>{"libsocial_bt_nodes_plugin.so"},
+  "behavior_architecture",   // package of the XML file
+  50);                       // tick period in ms
+register_runner("follow_runner", follow_runner);
 ```
 
 ### Method 3: SubTree Inclusion
@@ -102,17 +94,15 @@ Reference reusable behaviors from your own behavior trees:
 <root BTCPP_format="4">
   
   <!-- Include the reusable behavior -->
-  <include path="package://behavior_architecture/behaviors/reusable/follow_behavior.xml"/>
+  <include ros_pkg="behavior_architecture" path="behaviors/reusable/follow_behavior.xml"/>
   
   <BehaviorTree ID="MyComplexBehavior">
     <Sequence>
       <Speak text="I will follow you now"/>
       
       <!-- Use the reusable behavior as a SubTree -->
-      <SubTree ID="FollowBehavior" 
-               target_frame="person"
-               min_distance="1.0"
-               cmd_vel_topic="/cmd_vel"/>
+      <!-- Its values (frames, distances, topics) are fixed in its XML -->
+      <SubTree ID="FollowBehavior"/>
       
       <Speak text="Following completed"/>
     </Sequence>
@@ -131,6 +121,7 @@ Reference reusable behaviors from your own behavior trees:
 ```yaml
 - name: "my_follow_runner"
   behavior_file: "behaviors/reusable/follow_behavior.xml"
+  package_name: "behavior_architecture"
   control_period_ms: 50
 ```
 
@@ -140,7 +131,7 @@ Reference reusable behaviors from your own behavior trees:
 - `min_distance`: How close to get to target (default: 0.5m)
 - `cmd_vel_topic`: Where to publish velocity (default: "/target")
 
-See [behaviors/README.md](behaviors/README.md) for full documentation.
+See [behaviors/README.md](../behaviors/README.md) for full documentation.
 
 ## Creating Your Own Behaviors
 
@@ -163,7 +154,7 @@ Build complex behaviors by combining reusable ones:
 <?xml version="1.0"?>
 <root BTCPP_format="4">
   
-  <include path="package://behavior_architecture/behaviors/reusable/follow_behavior.xml"/>
+  <include ros_pkg="behavior_architecture" path="behaviors/reusable/follow_behavior.xml"/>
   
   <BehaviorTree ID="MyWorkflow">
     <Sequence>
@@ -206,42 +197,42 @@ behaviors:
     behavior_file: "behaviors/my_package/greet.xml"
 ```
 
-**In your C++ orchestrator:**
+**In your C++ orchestrator** (see [CUSTOM_ORCHESTRATORS.md](CUSTOM_ORCHESTRATORS.md)):
 ```cpp
-// State machine logic in control_cycle()
-switch(current_state_) {
-  case IDLE:
-    // Wait for trigger
-    if (button_pressed) current_state_ = GREETING;
-    break;
-    
-  case GREETING:
-    activateRunner("greet");
-    if (getRunnerStatus("greet") == SUCCESS) {
-      current_state_ = FOLLOWING;
-    }
-    break;
-    
-  case FOLLOWING:
-    activateRunner("follow");
-    if (getRunnerStatus("follow") == SUCCESS) {
-      current_state_ = IDLE;
-    } else if (getRunnerStatus("follow") == FAILURE) {
-      current_state_ = SEARCH;
-    }
-    break;
+void MyOrchestrator::control_cycle()
+{
+  switch (state_) {
+    case State::IDLE:
+      if (button_pressed_) {go_to_state(static_cast<int>(State::GREETING));}
+      break;
+    case State::GREETING:
+      if (check_behavior_finished()) {
+        go_to_state(static_cast<int>(
+          last_status_ == "SUCCESS" ? State::FOLLOWING : State::IDLE));
+      }
+      break;
+    case State::FOLLOWING:
+      if (check_behavior_finished()) {
+        go_to_state(static_cast<int>(State::IDLE));
+      }
+      break;
+  }
+}
+
+void MyOrchestrator::go_to_state(int state)
+{
+  state_ = static_cast<State>(state);
+  deactivate_all_runners();
+  if (state_ == State::GREETING) {activate_runner("greet");}
+  if (state_ == State::FOLLOWING) {activate_runner("follow");}
 }
 ```
 
-### Pattern 2: Parallel Behaviors
+### Pattern 2: Concurrent behaviours
 
-```cpp
-// Activate multiple runners simultaneously
-activateRunner("follow_runner");
-activateRunner("monitoring_runner");
-
-// Both will run in parallel until one completes or fails
-```
+Several runners can be active at once (`activate_runner` on each), but they all report on
+`/behavior_status`, so `check_behavior_finished()` cannot tell which one finished. For concurrent
+work, prefer one tree with a `Parallel` node, or `<include>` the reusable trees as SubTrees of it.
 
 ## Troubleshooting
 
@@ -253,17 +244,16 @@ activateRunner("monitoring_runner");
 ### BT nodes not found
 - Verify plugin libraries are specified correctly
 - Ensure dependent packages (like social_bt_nodes) are built
-- Check that plugin_libs list includes all required plugins
+- Check that `plugin_libraries` lists every required plugin (e.g. `libsocial_bt_nodes_plugin.so`)
 
 ### Behavior doesn't work as expected
-- Review the behavior's documentation in [behaviors/README.md](behaviors/README.md)
+- Review the behavior's documentation in [behaviors/README.md](../behaviors/README.md)
 - Check if required TF frames exist (`ros2 run tf2_ros tf2_echo`)
 - Verify topic names match your robot's configuration
 - Enable BT logging for detailed execution trace
 
 ## Further Reading
 
-- [behaviors/README.md](behaviors/README.md) - Complete catalogue documentation
-- [README.md](README.md) - Framework overview
-- [GENERIC_MISSION_EXECUTOR_README.md](GENERIC_MISSION_EXECUTOR_README.md) - YAML configuration guide
-- [MISSION_EXECUTOR_GUIDE.md](MISSION_EXECUTOR_GUIDE.md) - Creating custom orchestrators
+- [behaviors/README.md](../behaviors/README.md) - Complete catalogue documentation
+- [README.md](../README.md) - Framework overview and mission configuration
+- [CUSTOM_ORCHESTRATORS.md](CUSTOM_ORCHESTRATORS.md) - Creating custom orchestrators

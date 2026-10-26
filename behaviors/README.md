@@ -42,7 +42,7 @@ The `reusable/` directory contains **production-ready**, **well-tested**, and **
 - `Follow`: Navigate towards target with obstacle avoidance
 - `SpinSearch`: Rotate in place to search for target
 
-**Parameters** (configured in XML):
+**Parameters** (fixed in the XML):
 - `target_frame`: TF frame of the target to follow (default: "target")
 - `base_frame`: Robot's base frame (default: "base_link")
 - `min_distance`: Minimum distance to maintain from target (default: 0.5m)
@@ -54,23 +54,13 @@ The `reusable/` directory contains **production-ready**, **well-tested**, and **
 - `sonar_topic`: Sonar sensor topic (default: "/sensors/sonar")
 - `touch_topic`: Touch sensor topic (default: "/sensors/touch")
 
-**Usage Example**:
-```xml
-<SubTree ID="FollowBehavior" 
-         target_frame="person" 
-         base_frame="base_footprint"
-         min_distance="0.8"
-         cmd_vel_topic="/cmd_vel"/>
-```
+The values are written in the XML, not exposed as ports of the subtree: to change them, copy the
+file into your package and edit it.
 
 **Integration**:
-1. Ensure your package depends on `behavior_architecture` and `social_bt_nodes`
-2. Include the XML path in your BehaviorRunner configuration:
-   ```cpp
-   runner_config.xml_file_path = "behaviors/reusable/follow_behavior.xml";
-   runner_config.plugin_libs = {"social_bt_nodes_plugin"};
-   ```
-3. Or reference as a SubTree from another behavior tree
+1. Build social_bt_nodes (`examples.repos`), which provides the nodes of this tree
+2. Add it as a behaviour of your mission configuration (see [Using Behaviors in Other Packages](#using-behaviors-in-other-packages))
+3. Or include it as a SubTree from another behavior tree
 
 ---
 
@@ -168,22 +158,20 @@ Before moving a behavior to `reusable/`:
 
 ## Using Behaviors in Other Packages
 
-### Method 1: Load directly in BehaviorRunner
+### Method 1: As a behaviour of a mission configuration
 
-In your C++ code:
-```cpp
-#include "behavior_architecture/behavior_runner.hpp"
-
-// Create runner configuration
-BehaviorRunnerConfig config;
-config.name = "my_behavior_runner";
-config.xml_file_path = "behaviors/reusable/follow_behavior.xml";
-config.plugin_libs = {"social_bt_nodes_plugin"};
-config.tree_name = "FollowBehavior";
-
-// Create and use runner
-auto runner = std::make_shared<BehaviorRunner>(config);
+In the YAML of `mission_executor`, the entry names the package the file comes from:
+```yaml
+package_name: "my_robot"
+plugin_libraries:
+  - "libsocial_bt_nodes_plugin.so"
+behaviors:
+  - name: "follow_runner"
+    behavior_file: "behaviors/reusable/follow_behavior.xml"
+    package_name: "behavior_architecture"
+    control_period_ms: 50
 ```
+The orchestrator then runs it with `activate_runner("follow_runner")`.
 
 ### Method 2: Include as SubTree
 
@@ -193,7 +181,7 @@ In your behavior tree XML:
 <root BTCPP_format="4">
   
   <!-- Include the reusable behavior file -->
-  <include path="package://behavior_architecture/behaviors/reusable/follow_behavior.xml"/>
+  <include ros_pkg="behavior_architecture" path="behaviors/reusable/follow_behavior.xml"/>
   
   <BehaviorTree ID="MyMainBehavior">
     <Sequence>
@@ -201,7 +189,7 @@ In your behavior tree XML:
       <MyCustomNode/>
       
       <!-- Use the reusable behavior -->
-      <SubTree ID="FollowBehavior" target_frame="person"/>
+      <SubTree ID="FollowBehavior"/>
       
       <!-- More custom logic -->
       <AnotherCustomNode/>
@@ -211,16 +199,18 @@ In your behavior tree XML:
 </root>
 ```
 
-### Method 3: YAML Configuration (action_executor)
+### Method 3: A runner created in code
 
-In your YAML config file:
-```yaml
-behavior_runners:
-  follow_runner:
-    xml_path: "behaviors/reusable/follow_behavior.xml"
-    plugin_libs:
-      - "social_bt_nodes_plugin"
-    tree_name: "FollowBehavior"
+An orchestrator can create a runner itself and register it before it is configured:
+```cpp
+#include "behavior_architecture/behavior_runner.hpp"
+
+auto runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+  blackboard_, "follow_runner", "behaviors/reusable/follow_behavior.xml",
+  std::vector<std::string>{"libsocial_bt_nodes_plugin.so"},
+  "behavior_architecture",   // package of the XML file
+  50);                       // tick period in ms
+register_runner("follow_runner", runner);
 ```
 
 ---
@@ -255,5 +245,4 @@ To contribute a new reusable behavior:
 ## Questions or Issues?
 
 - Check the main [behavior_architecture README](../README.md) for framework details
-- See [GENERIC_ACTION_EXECUTOR_README.md](../GENERIC_ACTION_EXECUTOR_README.md) for YAML configuration
-- Refer to [ACTION_EXECUTOR_GUIDE.md](../ACTION_EXECUTOR_GUIDE.md) for orchestrator development
+- See [docs/CUSTOM_ORCHESTRATORS.md](../docs/CUSTOM_ORCHESTRATORS.md) for orchestrator development

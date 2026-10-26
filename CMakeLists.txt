@@ -15,8 +15,19 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
-find_package(llm_planner_interfaces REQUIRED)
-find_package(llm_bt_builder REQUIRED)
+# The LLM orchestrators (llm, mcp, llm_bt) need llm_planner_interfaces and llm_bt_builder, from
+# llm.repos. Without them the base (BaseOrchestrator, BehaviorRunner, mission_executor with the
+# plugin orchestrators) is built alone.
+find_package(llm_planner_interfaces QUIET)
+find_package(llm_bt_builder QUIET)
+if(llm_planner_interfaces_FOUND AND llm_bt_builder_FOUND)
+  set(WITH_LLM_ORCHESTRATORS ON)
+  message(STATUS "behavior_architecture: building the LLM orchestrators (llm, mcp, llm_bt)")
+else()
+  set(WITH_LLM_ORCHESTRATORS OFF)
+  message(STATUS "behavior_architecture: llm_planner_interfaces or llm_bt_builder not found: "
+    "the LLM orchestrators and their executables are not built (import llm.repos to build them)")
+endif()
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -69,17 +80,24 @@ install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
 )
 
-# Generic mission executor (YAML-configured, supports both fixed and LLM modes)
+# Generic mission executor (YAML-configured): the example orchestrators, the orchestrators of
+# the libraries listed in the YAML (orchestrator_libraries) and, if built, the LLM orchestrators
 add_executable(mission_executor
   src/mission_executor.cpp
-  src/llm_plan_orchestrator.cpp
-  src/mcp_llm_plan_orchestrator.cpp
   src/yaml_utils.cpp
   src/examples/restaurant_orchestrator.cpp
   src/examples/simple_orchestrator.cpp
 )
 target_link_libraries(mission_executor ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(mission_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
+ament_target_dependencies(mission_executor ${dependencies})
+if(WITH_LLM_ORCHESTRATORS)
+  target_sources(mission_executor PRIVATE
+    src/llm_plan_orchestrator.cpp
+    src/mcp_llm_plan_orchestrator.cpp
+  )
+  target_compile_definitions(mission_executor PRIVATE BEHAVIOR_ARCHITECTURE_WITH_LLM)
+  ament_target_dependencies(mission_executor llm_planner_interfaces llm_bt_builder)
+endif()
 
 install(TARGETS mission_executor
   DESTINATION lib/${PROJECT_NAME}
@@ -131,41 +149,43 @@ install(TARGETS simple_example
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# LLM-driven plan executor
-add_executable(llm_plan_executor
-  src/llm_plan_executor_main.cpp
-  src/llm_plan_orchestrator.cpp
-  src/mcp_llm_plan_orchestrator.cpp
-  src/yaml_utils.cpp
-)
-target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
+if(WITH_LLM_ORCHESTRATORS)
+  # LLM-driven plan executor
+  add_executable(llm_plan_executor
+    src/llm_plan_executor_main.cpp
+    src/llm_plan_orchestrator.cpp
+    src/mcp_llm_plan_orchestrator.cpp
+    src/yaml_utils.cpp
+  )
+  target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
+  ament_target_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
 
-install(TARGETS llm_plan_executor
-  DESTINATION lib/${PROJECT_NAME}
-)
+  install(TARGETS llm_plan_executor
+    DESTINATION lib/${PROJECT_NAME}
+  )
 
-add_executable(llm_bt_executor
-  src/llm_bt_executor_main.cpp
-  src/llm_bt_orchestrator.cpp
-  src/yaml_utils.cpp
-)
-target_link_libraries(llm_bt_executor ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(llm_bt_executor ${dependencies} llm_bt_builder)
+  add_executable(llm_bt_executor
+    src/llm_bt_executor_main.cpp
+    src/llm_bt_orchestrator.cpp
+    src/yaml_utils.cpp
+  )
+  target_link_libraries(llm_bt_executor ${PROJECT_NAME} yaml-cpp)
+  ament_target_dependencies(llm_bt_executor ${dependencies} llm_bt_builder)
 
-install(TARGETS llm_bt_executor
-  DESTINATION lib/${PROJECT_NAME}
-)
+  install(TARGETS llm_bt_executor
+    DESTINATION lib/${PROJECT_NAME}
+  )
 
-# Client to send a mission to the LLM orchestrator
+  # Client to send a mission to the LLM orchestrator
 
-add_executable(start_mission src/start_mission.cpp)
-target_link_libraries(start_mission yaml-cpp)
-ament_target_dependencies(start_mission rclcpp llm_planner_interfaces geometry_msgs tf2_msgs)
+  add_executable(start_mission src/start_mission.cpp)
+  target_link_libraries(start_mission yaml-cpp)
+  ament_target_dependencies(start_mission rclcpp llm_planner_interfaces geometry_msgs tf2_msgs)
 
-install(TARGETS start_mission
-  DESTINATION lib/${PROJECT_NAME}
-)
+  install(TARGETS start_mission
+    DESTINATION lib/${PROJECT_NAME}
+  )
+endif()
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

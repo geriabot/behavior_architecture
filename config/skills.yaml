@@ -1,6 +1,6 @@
 # skills.yaml
 # Capabilities available to the robot in this deployment.
-# This file is passed to test_start_mission via the 'skills_file' launch argument
+# This file is passed to start_mission via the 'skills_file' launch argument
 # and its contents are forwarded to every plan/replan request so the LLM
 # plans exclusively within this capability envelope.
 #

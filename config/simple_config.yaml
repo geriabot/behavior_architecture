@@ -1,6 +1,6 @@
 # Fixed-orchestrator configuration for behavior_architecture
 # orchestrator_type: "simple" selects the hard-coded 2-state state machine.
-# Use orchestrator_type: "llm" (see test_goal.yaml) for LLM-guided execution.
+# Use orchestrator_type: "llm" (see llm_config.yaml; needs llm.repos) for LLM-guided execution.
 #
 # Usage:
 #   ros2 launch behavior_architecture mission_executor.launch.py \

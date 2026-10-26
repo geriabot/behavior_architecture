@@ -22,7 +22,9 @@
 #include "behavior_architecture/config_parser.hpp"
 #include "behavior_architecture/behavior_runner.hpp"
 #include "behavior_architecture/orchestrator_factory.hpp"
+#ifdef BEHAVIOR_ARCHITECTURE_WITH_LLM
 #include "behavior_architecture/llm_plan_orchestrator.hpp"
+#endif
 
 // Include all orchestrator implementations to trigger registration
 #include "behavior_architecture/examples/restaurant_orchestrator.hpp"

@@ -1,10 +1,12 @@
 # LLM-guided configuration for behavior_architecture
 # orchestrator_type: "llm" tells the system to use the LLM planning pipeline
 # instead of a hard-coded state-machine orchestrator.
+# Needs the LLM orchestrators (llm.repos) and the BT nodes of dummy_bt_nodes
+# (https://github.com/rodperex/dummy_bt_nodes) in the workspace.
 #
 # Usage:
 #   ros2 launch behavior_architecture llm_dummy_demo.launch.py \
-#     config_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/test_goal.yaml
+#     config_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/llm_config.yaml
 
 # ── Common fields (shared with fixed-orchestrator configs) ────────────────────
 node_name: "bt_node"
