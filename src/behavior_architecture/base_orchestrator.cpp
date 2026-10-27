@@ -46,9 +46,12 @@ BaseOrchestrator::status_callback(std_msgs::msg::String::UniquePtr msg)
   last_status_ = msg->data;
   RCLCPP_DEBUG(get_logger(), "Status received: %s", last_status_.c_str());
   
-  // Reset status if behavior was deactivated
+  // Reset status if behavior was deactivated, and forget the result of the previous run: a
+  // behavior activated next that ends on its first tick with the same result (no RUNNING in
+  // between) must still be reported as finished
   if (last_status_ == "DEACTIVATED") {
     last_status_ = "";
+    status_received_ = "";
   }
 }
 

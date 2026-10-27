@@ -144,8 +144,9 @@ install(DIRECTORY behaviors config launch DESTINATION share/${PROJECT_NAME})
 ament_package()
 ```
 
-Both libraries go to `lib/` of the install space: `mission_executor` and the runners load them by
-file name, which a sourced workspace puts on `LD_LIBRARY_PATH`. The form above (linking targets,
+Both libraries go to `lib/` of the install space: `mission_executor` looks for the orchestrator
+library in `lib/` of the configuration's `package_name` and then by file name (a sourced
+workspace puts `lib/` on `LD_LIBRARY_PATH`); the runners load the BT plugins by file name. The form above (linking targets,
 not `ament_target_dependencies`) builds on both Jazzy and Lyrical.
 
 ## 4. The configuration

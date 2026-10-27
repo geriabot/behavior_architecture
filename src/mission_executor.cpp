@@ -17,6 +17,7 @@
 #include <cctype>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "ament_index_cpp/get_package_prefix.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 #include "behavior_architecture/config_parser.hpp"
@@ -75,9 +76,9 @@ void load_orchestrator_libraries(
     std::string lib_path;
     
     try {
-      // Try to find library in package lib directory
-      std::string package_share = ament_index_cpp::get_package_share_directory(package_name);
-      std::string package_lib = package_share + "/../lib/" + lib_name;
+      // Try to find library in package lib directory (<prefix>/lib)
+      std::string package_lib =
+        ament_index_cpp::get_package_prefix(package_name) + "/lib/" + lib_name;
       
       // Load the library
       void * handle = dlopen(package_lib.c_str(), RTLD_LAZY | RTLD_GLOBAL);
