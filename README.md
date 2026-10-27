@@ -195,7 +195,7 @@ behaviors:                              # one BehaviorRunner each (required)
 | `orchestrator_type` | (required) | Type registered with `OrchestratorRegistrar`. |
 | `node_name` | `bt_node` | Name of the ROS node that the BT nodes get from the blackboard key `"node"`. |
 | `package_name` | `behavior_architecture` | Package whose share directory resolves relative `behavior_file` paths. |
-| `orchestrator_libraries` | `[]` | Libraries `dlopen`ed before the orchestrator is created. They are found through `LD_LIBRARY_PATH`: install them to `lib/` of a sourced workspace. |
+| `orchestrator_libraries` | `[]` | Libraries `dlopen`ed before the orchestrator is created. They are looked up in `lib/` of the configuration's `package_name` (its install prefix), then through `LD_LIBRARY_PATH`: install them to `lib/` of the package. |
 | `plugin_libraries` | `[]` | BT plugin libraries (`BT_REGISTER_NODES`) loaded by every runner; found the same way. |
 | `behaviors[].name` | (required) | Runner name. |
 | `behaviors[].behavior_file` | (required) | Tree XML: absolute, or relative to the share directory of the package. |
