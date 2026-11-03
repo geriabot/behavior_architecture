@@ -86,7 +86,8 @@ lists the installed trees.
 
 **A node of the tree is not recognised.** The plugin library that provides it is missing from
 `plugin_libraries`, or its package is not built. The runner logs
-`Caught exception in callback for transition 13` and does not activate.
+`could not build the tree from ...` with the node's name and does not activate; the orchestrator
+sees the behavior end with `FAILURE`.
 
 **The behavior does not act as expected.** The TF frames and topics written in the file must
 match the robot's (`ros2 run tf2_ros tf2_echo base_link target`, `ros2 topic list`); copy the file

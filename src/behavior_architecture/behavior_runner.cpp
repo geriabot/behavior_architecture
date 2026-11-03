@@ -14,10 +14,32 @@
 
 
 #include "behavior_architecture/behavior_runner.hpp"
+
+#include <fstream>
+#include <iterator>
+#include <regex>
+#include <set>
 #include <stdexcept>
 
 namespace behavior_architecture
 {
+
+std::vector<std::string>
+tree_ids_used_by_nodes(const std::string & xml, const BT::BehaviorTreeFactory & factory)
+{
+  static const std::regex tree_id(
+    R"(<\s*(?:BehaviorTree|SubTree)\b[^>]*?\bID\s*=\s*["']([^"']*)["'])");
+  std::set<std::string> ids;
+  for (auto it = std::sregex_iterator(xml.begin(), xml.end(), tree_id);
+    it != std::sregex_iterator(); ++it)
+  {
+    const std::string id = (*it)[1].str();
+    if (factory.builders().count(id) != 0) {
+      ids.insert(id);
+    }
+  }
+  return {ids.begin(), ids.end()};
+}
 
 BehaviorRunner::BehaviorRunner(
   BT::Blackboard::Ptr blackboard,
@@ -88,6 +110,12 @@ BehaviorRunner::get_bt_status() {
   return status_;
 }
 
+const std::string &
+BehaviorRunner::activation_error() const
+{
+  return activation_error_;
+}
+
 void
 BehaviorRunner::set_bt(const std::string & xml)
 {
@@ -98,43 +126,80 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */)
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner (%s) on_activate", get_name());
+  activation_error_.clear();
 
-  // Support both absolute paths and package-relative paths
-  std::string xml_file;
-  if (!xml_path_.empty() && xml_path_[0] == '/') {
-    xml_file = xml_path_;
-  } else {
-    xml_file = ament_index_cpp::get_package_share_directory(package_name_) + "/" + xml_path_;
-  }
+  // Building the tree may fail (a file or a package that is not found, a plugin that cannot be
+  // loaded, an unknown node, invalid XML, a tree ID that is a node ID): the transition then
+  // fails with the reason, and the runner stays inactive, so that it can be activated again
+  std::string source;
+  // Held from the creation of the tree to the end of the activation, as the tree is replaced
+  std::unique_lock<std::mutex> lock(tree_mutex_, std::defer_lock);
+  try {
+    BT::BehaviorTreeFactory factory;
+    std::string xml_file;
+    if (bt_xml_.empty()) {
+      // Support both absolute paths and package-relative paths
+      if (!xml_path_.empty() && xml_path_[0] == '/') {
+        xml_file = xml_path_;
+      } else {
+        source = "the file '" + xml_path_ + "' of the package '" + package_name_ + "'";
+        xml_file = ament_index_cpp::get_package_share_directory(package_name_) + "/" + xml_path_;
+      }
+      source = "the file '" + xml_file + "'";
+      RCLCPP_INFO(get_logger(), "XML file: %s", xml_file.c_str());
+    } else {
+      source = "the XML given with set_bt()";
+    }
 
-  RCLCPP_INFO(get_logger(), "XML file: %s", xml_file.c_str());
+    for (const auto & plugin : plugins_) {
+      factory.registerFromPlugin(plugin);
+      RCLCPP_DEBUG(get_logger(), "Plugin loaded: %s", plugin.c_str());
+    }
 
-  BT::BehaviorTreeFactory factory;
+    // Register custom nodes if callback provided
+    if (custom_node_registrar_) {
+      custom_node_registrar_(factory);
+      RCLCPP_DEBUG(get_logger(), "Custom nodes registered");
+    }
 
-  for (const auto & plugin : plugins_) {
-    factory.registerFromPlugin(plugin);
-    RCLCPP_DEBUG(get_logger(), "Plugin loaded: %s", plugin.c_str());
-  }
-
-  // Register custom nodes if callback provided
-  if (custom_node_registrar_) {
-    custom_node_registrar_(factory);
-    RCLCPP_DEBUG(get_logger(), "Custom nodes registered");
-  }
-
-  RCLCPP_DEBUG(get_logger(), "Getting node from blackboard");
-  blackboard_->get("node", node_);
-  RCLCPP_DEBUG(get_logger(), "Creating BT");
-  std::lock_guard<std::mutex> lock(tree_mutex_);
-  // Loggers must stop observing the old tree before it is replaced.
-  groot_publisher_.reset();
-  cout_logger_.reset();
-  if (!bt_xml_.empty()) {
-    tree_ = factory.createTreeFromText(bt_xml_, blackboard_);
-    RCLCPP_DEBUG(get_logger(), "BT created from XML string");
-  } else {
-    tree_ = factory.createTreeFromFile(xml_file, blackboard_);
-    RCLCPP_DEBUG(get_logger(), "BT created from XML");
+    RCLCPP_DEBUG(get_logger(), "Getting node from blackboard");
+    blackboard_->get("node", node_);
+    RCLCPP_DEBUG(get_logger(), "Creating BT");
+    lock.lock();
+    // Loggers must stop observing the old tree before it is replaced.
+    groot_publisher_.reset();
+    cout_logger_.reset();
+    try {
+      if (!bt_xml_.empty()) {
+        tree_ = factory.createTreeFromText(bt_xml_, blackboard_);
+        RCLCPP_DEBUG(get_logger(), "BT created from XML string");
+      } else {
+        tree_ = factory.createTreeFromFile(xml_file, blackboard_);
+        RCLCPP_DEBUG(get_logger(), "BT created from XML");
+      }
+    } catch (const std::exception & e) {
+      // BehaviorTree.CPP does not name the tree whose ID is the ID of a registered node
+      std::string xml = bt_xml_;
+      if (xml.empty()) {
+        std::ifstream in(xml_file);
+        xml.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+      }
+      const auto conflicts = tree_ids_used_by_nodes(xml, factory);
+      if (conflicts.empty()) {
+        throw;
+      }
+      std::string ids;
+      for (const auto & id : conflicts) {
+        ids += (ids.empty() ? "'" : ", '") + id + "'";
+      }
+      throw std::runtime_error(
+              "the ID " + ids + " of a <BehaviorTree> (or of a <SubTree>) is also the ID of a "
+              "registered BT node; give the tree another ID (" + e.what() + ")");
+    }
+  } catch (const std::exception & e) {
+    activation_error_ = "could not build the tree from " + source + ": " + e.what();
+    RCLCPP_ERROR(get_logger(), "BehaviorRunner (%s) %s", get_name(), activation_error_.c_str());
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::FAILURE;
   }
 
   cout_logger_ = std::make_unique<BT::StdCoutLogger>(tree_);

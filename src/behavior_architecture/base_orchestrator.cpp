@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "behavior_architecture/base_orchestrator.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
 #include "lifecycle_msgs/msg/transition.hpp"
 
 namespace behavior_architecture
@@ -58,6 +59,15 @@ BaseOrchestrator::status_callback(std_msgs::msg::String::UniquePtr msg)
 bool
 BaseOrchestrator::check_behavior_finished()
 {
+  // A runner that could not be activated ends at once, with FAILURE
+  if (activation_failed_) {
+    activation_failed_ = false;
+    last_status_ = "FAILURE";
+    status_received_ = "FAILURE";
+    // No DEACTIVATED message will clear the result: the next activation does
+    clear_status_on_activation_ = true;
+    return true;
+  }
   if (status_received_ != last_status_ && last_status_ != "") {
     status_received_ = last_status_;
     RCLCPP_DEBUG(get_logger(), "Behavior status changed to: %s", status_received_.c_str());
@@ -147,16 +157,35 @@ BaseOrchestrator::get_runners() const
   return result;
 }
 
-void
+bool
 BaseOrchestrator::activate_runner(const std::string & name)
 {
   auto it = runners_.find(name);
-  if (it != runners_.end()) {
-    it->second->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
-    active_runners_.insert(name);
-  } else {
+  if (it == runners_.end()) {
     RCLCPP_WARN(get_logger(), "Runner '%s' not registered", name.c_str());
+    return false;
   }
+  if (clear_status_on_activation_) {
+    clear_status_on_activation_ = false;
+    last_status_ = "";
+    status_received_ = "";
+  }
+  const auto state =
+    it->second->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
+  if (state.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+    // The runner could not build its tree; check_behavior_finished() reports it as a FAILURE
+    // The runners are stored as lifecycle nodes (BehaviorRunner::SharedPtr)
+    const auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
+    const std::string reason = runner && !runner->activation_error().empty() ?
+      runner->activation_error() : "it is " + state.label();
+    RCLCPP_ERROR(get_logger(), "Runner '%s' could not be activated: %s", name.c_str(),
+      reason.c_str());
+    activation_failed_ = true;
+    return false;
+  }
+  activation_failed_ = false;
+  active_runners_.insert(name);
+  return true;
 }
 
 void

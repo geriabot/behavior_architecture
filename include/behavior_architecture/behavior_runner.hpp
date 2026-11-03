@@ -78,6 +78,16 @@ public:
   BT::NodeStatus get_bt_status();
 
   /**
+   * @brief Why the last activation failed
+   *
+   * When the tree cannot be built (a file or a package that is not found, a plugin that cannot
+   * be loaded, an unknown node, invalid XML, a tree whose ID is the ID of a registered node),
+   * the activation fails and the runner stays inactive; it can be activated again.
+   * @return The reason, or "" if the last activation succeeded
+   */
+  const std::string & activation_error() const;
+
+  /**
    * @brief Set BT XML string directly (skips file loading in on_activate)
    * @param xml BehaviorTree XML string
    */
@@ -128,7 +138,15 @@ private:
   rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::String>::SharedPtr status_pub_;
   
   bool executed_;
+  std::string activation_error_;
 };
+
+/**
+ * @brief The IDs of the trees (<BehaviorTree ID>, <SubTree ID>) of an XML text that are also
+ * IDs of nodes registered in a factory, which BehaviorTree.CPP rejects
+ */
+std::vector<std::string> tree_ids_used_by_nodes(
+  const std::string & xml, const BT::BehaviorTreeFactory & factory);
 
 }  // namespace behavior_architecture
 

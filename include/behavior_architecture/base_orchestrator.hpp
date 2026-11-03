@@ -86,7 +86,15 @@ protected:
    */
   virtual void go_to_state(int state) = 0;
 
-  void activate_runner(const std::string & name);
+  /**
+   * @brief Activate a runner: it builds its tree and starts ticking it
+   *
+   * If the runner cannot build its tree, its activation fails (the reason is logged and is in
+   * the runner's activation_error()), the runner stays inactive, and the next call to
+   * check_behavior_finished() returns true with last_status_ "FAILURE".
+   * @return true if the runner is active
+   */
+  bool activate_runner(const std::string & name);
   void deactivate_runner(const std::string & name);
   void deactivate_all_runners();
 
@@ -127,6 +135,10 @@ protected:
 
 private:
   bool started_;
+  // The last activate_runner() failed, and check_behavior_finished() has not reported it yet
+  bool activation_failed_ {false};
+  // That failure was reported: the next activation clears the status, as DEACTIVATED does
+  bool clear_status_on_activation_ {false};
 };
 
 }  // namespace behavior_architecture

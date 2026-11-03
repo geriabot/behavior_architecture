@@ -386,6 +386,17 @@ if(BUILD_TESTING)
       INTERPRETATION_BT_PLUGIN="$<TARGET_FILE:${PROJECT_NAME}_interpretation_bt_nodes>")
     add_dependencies(test_interpretation_bt_nodes ${PROJECT_NAME}_interpretation_bt_nodes)
   endif()
+
+  # The base: runners that cannot build their tree
+  cmake_language(CALL ${_interpretation_add_gtest} test_base_orchestrator
+    test/base/test_base_orchestrator.cpp
+    SKIP_LINKING_MAIN_LIBRARIES
+    TIMEOUT 120
+  )
+  if(TARGET test_base_orchestrator)
+    target_link_libraries(test_base_orchestrator ${PROJECT_NAME})
+    ament_target_dependencies(test_base_orchestrator ${dependencies})
+  endif()
 endif()
 
 if(BUILD_TESTING)

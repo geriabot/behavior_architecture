@@ -368,10 +368,10 @@ the blackboard that `mission_executor` filled.
 |---|---|---|
 | `control_cycle()` | pure virtual | The FSM. Called every `control_cycle_rate_ms` while the orchestrator is active. |
 | `go_to_state(int)` | pure virtual | Enter a state: activate and deactivate the runners it needs. |
-| `activate_runner(name)` | protected | Activate the runner: it builds its tree and starts ticking. Logs a warning if no runner has that name. |
+| `activate_runner(name)` | protected | Activate the runner: it builds its tree and starts ticking. Returns `false`, and logs why, if no runner has that name or the runner cannot build its tree. |
 | `deactivate_runner(name)` | protected | Deactivate the runner: its tree is halted. |
 | `deactivate_all_runners()` | protected | Deactivate every runner activated through this class. |
-| `check_behavior_finished()` | protected | `true` once when the status received on `/behavior_status` changes to `SUCCESS` or `FAILURE`; that status is then in `last_status_`. |
+| `check_behavior_finished()` | protected | `true` once when the status received on `/behavior_status` changes to `SUCCESS` or `FAILURE`, or after an `activate_runner()` that failed (as `FAILURE`); that status is then in `last_status_`. |
 | `last_status_` | protected | The last status received (`""`, `RUNNING`, `SUCCESS` or `FAILURE`; `DEACTIVATED` resets it to `""`). |
 | `blackboard_` | protected | The blackboard shared with every tree. |
 | `runners_` | protected | The runners, by name. |
@@ -383,6 +383,12 @@ the blackboard that `mission_executor` filled.
 runner was registered with `register_runner()` before, the YAML entries are not created: either
 the YAML or the code defines the runners. `on_activate()` starts the control cycle;
 `on_deactivate()` deactivates every runner and stops it.
+
+A runner that cannot build its tree (a file or a package that is not found, a plugin library
+that cannot be loaded, a node that is not registered, invalid XML, a tree whose `ID` is a node
+ID) does not activate: the runner logs the reason, `activate_runner()` returns `false`, and
+`check_behavior_finished()` then reports the behavior as finished with `FAILURE`. The runner
+stays inactive and can be activated again.
 
 Every runner publishes on the same topic, and the status does not identify the runner that sent
 it, so an orchestrator keeps one runner active at a time. Concurrent activities belong in one
@@ -467,7 +473,7 @@ the next behavior, or the orchestrator, can read it. The orchestrator can also w
 tree before activating its runner.
 
 The `ID` of a `<BehaviorTree>` must differ from the IDs of the registered nodes: a tree `Greet`
-that uses a node `Greet` fails to build.
+that uses a node `Greet` fails to build, and the runner's error names the tree file and the ID.
 
 ## LLM orchestrators (optional)
 
@@ -741,11 +747,13 @@ library.
 `dlerror()` text names them). `ldd -r install/my_robot/lib/libmy_robot_orchestrator.so` lists
 them.
 
-**`Caught exception in callback for transition 13`, and the FSM does not advance.** The runner
-failed to activate: the tree file was not found, a plugin library could not be loaded, a node of
-the tree is not registered, or the tree's `ID` equals a node ID. The runner then publishes
-nothing, so `check_behavior_finished()` never returns `true`. Loading the tree with
-`BT::BehaviorTreeFactory::createTreeFromFile()` and the same plugins shows the exception.
+**`BehaviorRunner (...) could not build the tree from ...`.** The runner failed to activate, for
+the reason that the message gives: the tree file or its package was not found, a plugin library
+could not be loaded, a node of the tree is not registered, the XML is invalid, or the tree's `ID`
+equals a node ID (the message names the ID). The orchestrator logs
+`Runner '...' could not be activated`, and `check_behavior_finished()` reports `FAILURE`; an
+orchestrator that retries a failed behavior (as `simple` does) retries it, and fails again,
+until the tree is corrected.
 
 **`Runner '...' not registered`.** The name passed to `activate_runner()` is not a `name` of the
 YAML `behaviors`.

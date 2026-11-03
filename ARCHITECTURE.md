@@ -71,12 +71,12 @@ instead of the factory. `llm_plan_executor` and `llm_bt_executor` build their ow
 |---|---|---|
 | constructor | Declares `control_cycle_rate_ms` (default 100) and reads it; subscribes to `/behavior_status`. | Declares `enable_groot_monitoring` and `groot_port`; creates the lifecycle publisher of `/behavior_status`. |
 | `configure` | If no runner was registered, creates one `BehaviorRunner` per entry of `behaviors_config`; then configures every runner. | Default (no work). |
-| `activate` | Starts the timer of `control_cycle()`. Activates no runner. | Builds the tree, creates its loggers, activates the publisher and starts the tick timer ([Behavior runners](#behavior-runners-trees-and-plugins)). |
+| `activate` | Starts the timer of `control_cycle()`. Activates no runner. | Builds the tree, creates its loggers, activates the publisher and starts the tick timer ([Behavior runners](#behavior-runners-trees-and-plugins)). If the tree cannot be built, the transition fails and the runner stays inactive. |
 | `deactivate` | Deactivates the active runners and stops the timer. | Stops the timer, removes the loggers, publishes `DEACTIVATED`, deactivates the publisher, halts the tree. |
 
 The orchestrator drives the runners' transitions directly (`trigger_transition()` on each
 runner object), within its own thread: `activate_runner()` returns once the runner has built its
-tree. The runners' lifecycle services exist, as for any lifecycle node, but the package does not
+tree, or has failed to, which it returns as `false`. The runners' lifecycle services exist, as for any lifecycle node, but the package does not
 use them.
 
 A runner can be activated and deactivated any number of times. Every activation builds a new
@@ -107,6 +107,12 @@ compares it with the last status it reported: when the status has changed and is
 message clears both values, so a behavior activated afterwards is reported even if it ends with
 the same result as the previous one, and even if it ends on its first tick without ever
 publishing `RUNNING`.
+
+A runner that could not be activated publishes nothing. `activate_runner()` records the failure,
+and the next `check_behavior_finished()` returns `true` with `last_status_` set to `FAILURE`, so
+that an FSM that waits for the behavior does not wait forever; the next activation clears that
+result, as `DEACTIVATED` would. An orchestrator that checks the value of `activate_runner()`, or
+the state of the runner, handles the failure at once instead.
 
 The topic is absolute and shared by every runner, and the message does not identify its sender.
 The design therefore assumes one active runner at a time: the FSM state names the behavior that
@@ -146,10 +152,13 @@ optionally, a function that registers nodes from code. On every activation it:
    `BT::Groot2Publisher` on `groot_port` (Groot2 also uses the next port).
 5. Starts a wall timer that ticks the tree with `executeTick()` every `control_period_ms`.
 
-An exception in these steps (a missing file, a library that cannot be loaded, an unknown node,
-invalid XML) is caught by rclcpp's lifecycle machinery, which logs
-`Caught exception in callback for transition 13` and leaves the runner inactive. The runner then
-publishes no status.
+An error in these steps (a file or a package that is not found, a library that cannot be loaded,
+an unknown node, invalid XML, a tree whose `ID` is the ID of a registered node) fails the
+transition: the runner logs `could not build the tree from <file>: <reason>` (for an ID that is
+a node ID, the reason names the ID, which BehaviorTree.CPP does not), keeps the reason in
+`activation_error()`, and stays inactive, so that it can be activated again, for example after
+`set_bt()` with a corrected tree. It publishes no status ([Control cycle and status
+reporting](#control-cycle-and-status-reporting)).
 
 ## Orchestrator types and plugin libraries
 
@@ -512,6 +521,6 @@ behavior_architecture/
 ├── launch/
 ├── cmake/                                          opt-in export of interpretation
 ├── scripts/interpretation_server
-├── test/interpretation/
+├── test/base/, test/interpretation/
 └── docs/
 ```

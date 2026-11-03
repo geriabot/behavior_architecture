@@ -375,11 +375,12 @@ of the library.
 is not sourced, or the library has undefined symbols (the `dlerror()` message names them):
 `ldd -r install/my_robot/lib/libmy_robot_orchestrator.so`.
 
-**`Caught exception in callback for transition 13` when a runner is activated.** The tree could
-not be built: a node is not registered (the plugin library is missing from `plugin_libraries`,
-was built without `BT_PLUGIN_EXPORT`, or does not register the node with `BT_REGISTER_NODES`),
-the tree's `ID` equals a node ID, or the file was not found. The orchestrator then waits forever
-in that state.
+**`could not build the tree from ...` when a runner is activated.** The tree could not be built,
+for the reason that the message gives: a node is not registered (the plugin library is missing
+from `plugin_libraries`, was built without `BT_PLUGIN_EXPORT`, or does not register the node with
+`BT_REGISTER_NODES`), the tree's `ID` equals a node ID (the message names it), or the file was not
+found. The runner stays inactive, `activate_runner()` returns `false`, and
+`check_behavior_finished()` reports the behavior as finished with `FAILURE`.
 
 **A behavior file is not found.** Relative paths are resolved in the share directory of the
 behavior's `package_name` (or the global one): `install(DIRECTORY behaviors ...)` must put the
