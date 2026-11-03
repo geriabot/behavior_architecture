@@ -100,6 +100,8 @@ def run_cancellable(call, function, *args, **kwargs):
         if call.cancelled.is_set():
             raise Cancelled()
     if 'error' in outcome:
+        if call.cancelled.is_set():
+            raise Cancelled()  # it failed because it was cancelled (it stopped retrying)
         raise outcome['error']
     return outcome['result']
 

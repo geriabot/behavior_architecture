@@ -105,7 +105,8 @@ def test_schema_rejected_is_sent_again_without_format(stub, monkeypatch):
 
 def test_errors(stub, monkeypatch):
     monkeypatch.delenv('ANTHROPIC_API_KEY', raising=False)
-    backend = create_backend('anthropic', {'url': stub.url})
+    # Without the SDK's retries, which would repeat the 500 (test_sdk_retries.py)
+    backend = create_backend('anthropic', {'url': stub.url, 'sdk_retries': False})
     with pytest.raises(BackendError, match='no API key'):
         backend.generate('c', 'p', None, [], Limits(5))
     monkeypatch.setenv('ANTHROPIC_API_KEY', 'k')

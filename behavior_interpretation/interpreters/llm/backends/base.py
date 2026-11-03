@@ -27,6 +27,8 @@ class BackendError(RuntimeError):
 
     reason = 'model_down'
     status = 0  # the HTTP status of an HTTP error (0: not an HTTP error)
+    headers = None  # the headers of an HTTP error's response (names in lower case)
+    connection = False  # the model could not be reached (no HTTP response)
 
 
 class BackendTimeout(BackendError):
@@ -38,9 +40,11 @@ class BackendTimeout(BackendError):
 class Limits:
     """The limits of one call to a backend."""
 
-    def __init__(self, timeout_s=120.0, max_tokens=0):
+    def __init__(self, timeout_s=120.0, max_tokens=0, cancelled=None):
         self.timeout_s = float(timeout_s)
         self.max_tokens = int(max_tokens or 0)
+        self.cancelled = cancelled  # an Event set when the call is cancelled (or None)
+        self.sdk_retries = 0        # the requests repeated by the route's sdk_retries
 
 
 class GenerateResult:

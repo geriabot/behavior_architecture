@@ -417,7 +417,8 @@ taken from the context, and the question class's `validate()`.
 Each attempt of the `llm` interpreter is limited by the route's `timeout_s` (default 120 s) and
 by what remains of the request's `budget_s` (0: no budget). When the budget is spent the call
 fails with the reason `budget`. The client has its own limit (default 120 s), which only protects
-the asker from a server that does not answer.
+the asker from a server that does not answer. The `llm_manager` dialects repeat a failed HTTP
+request as the official SDKs of their gateway did (`sdk_retries`), within the same limits.
 
 ### Backends and routes
 

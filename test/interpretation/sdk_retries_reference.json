@@ -1,0 +1,279 @@
+{
+ "openai": {
+  "version": "3.39.0",
+  "scenarios": {
+   "fail1_500": {
+    "requests": 2,
+    "gaps": [
+     0.5022
+    ],
+    "outcome": "ok"
+   },
+   "fail2_503": {
+    "requests": 3,
+    "gaps": [
+     0.502,
+     1.002
+    ],
+    "outcome": "ok"
+   },
+   "fail5_500": {
+    "requests": 3,
+    "gaps": [
+     0.5018,
+     1.002
+    ],
+    "outcome": "InternalServerError"
+   },
+   "statuses_408_409": {
+    "requests": 3,
+    "gaps": [
+     0.5019,
+     1.0018
+    ],
+    "outcome": "ok"
+   },
+   "status_400": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "BadRequestError"
+   },
+   "status_404": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "NotFoundError"
+   },
+   "retry_after_s": {
+    "requests": 2,
+    "gaps": [
+     1.002
+    ],
+    "outcome": "ok"
+   },
+   "retry_after_ms": {
+    "requests": 2,
+    "gaps": [
+     0.3019
+    ],
+    "outcome": "ok"
+   },
+   "retry_after_long": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "RateLimitError"
+   },
+   "retry_after_zero": {
+    "requests": 2,
+    "gaps": [
+     0.5016
+    ],
+    "outcome": "ok"
+   },
+   "should_retry_false": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "InternalServerError"
+   },
+   "should_retry_true": {
+    "requests": 2,
+    "gaps": [
+     0.5017
+    ],
+    "outcome": "ok"
+   },
+   "drop2": {
+    "requests": 3,
+    "gaps": [
+     0.5016,
+     1.0018
+    ],
+    "outcome": "ok"
+   },
+   "jitter": {
+    "requests": 3,
+    "gaps": [
+     0.4935,
+     0.9236
+    ],
+    "outcome": "ok"
+   }
+  }
+ },
+ "anthropic": {
+  "version": "0.84.0",
+  "scenarios": {
+   "fail1_500": {
+    "requests": 2,
+    "gaps": [
+     0.5017
+    ],
+    "outcome": "ok"
+   },
+   "fail2_503": {
+    "requests": 3,
+    "gaps": [
+     0.5014,
+     1.0014
+    ],
+    "outcome": "ok"
+   },
+   "fail5_500": {
+    "requests": 3,
+    "gaps": [
+     0.5019,
+     1.0012
+    ],
+    "outcome": "InternalServerError"
+   },
+   "statuses_408_409": {
+    "requests": 3,
+    "gaps": [
+     0.5019,
+     1.0013
+    ],
+    "outcome": "ok"
+   },
+   "status_400": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "BadRequestError"
+   },
+   "status_404": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "NotFoundError"
+   },
+   "retry_after_s": {
+    "requests": 2,
+    "gaps": [
+     1.0015
+    ],
+    "outcome": "ok"
+   },
+   "retry_after_ms": {
+    "requests": 2,
+    "gaps": [
+     0.3015
+    ],
+    "outcome": "ok"
+   },
+   "retry_after_long": {
+    "requests": 2,
+    "gaps": [
+     0.5013
+    ],
+    "outcome": "ok"
+   },
+   "retry_after_zero": {
+    "requests": 2,
+    "gaps": [
+     0.5016
+    ],
+    "outcome": "ok"
+   },
+   "should_retry_false": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "InternalServerError"
+   },
+   "should_retry_true": {
+    "requests": 2,
+    "gaps": [
+     0.5012
+    ],
+    "outcome": "ok"
+   },
+   "drop2": {
+    "requests": 3,
+    "gaps": [
+     0.5016,
+     1.0044
+    ],
+    "outcome": "ok"
+   },
+   "jitter": {
+    "requests": 3,
+    "gaps": [
+     0.4728,
+     0.807
+    ],
+    "outcome": "ok"
+   }
+  }
+ },
+ "gemini": {
+  "version": "2.33.0",
+  "scenarios": {
+   "fail1_500": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ServerError"
+   },
+   "fail2_503": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ServerError"
+   },
+   "fail5_500": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ServerError"
+   },
+   "statuses_408_409": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "status_400": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "status_404": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "retry_after_s": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "retry_after_ms": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "retry_after_long": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "retry_after_zero": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ServerError"
+   },
+   "should_retry_false": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ServerError"
+   },
+   "should_retry_true": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ClientError"
+   },
+   "drop2": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "RemoteProtocolError"
+   },
+   "jitter": {
+    "requests": 1,
+    "gaps": [],
+    "outcome": "ServerError"
+   }
+  }
+ }
+}

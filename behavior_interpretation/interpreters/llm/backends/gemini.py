@@ -27,8 +27,11 @@ Two dialects:
   maxOutputTokens, responseMimeType, responseSchema and thinkingBudget 0. The SDK's body is
   reproduced as JSON content, not byte for byte.
 
+With `sdk_retries` (by default in the `llm_manager` dialect only), the request is retried as
+the google-genai SDK does by default: never (retries.py).
+
 Options of the route: url (default https://generativelanguage.googleapis.com), dialect,
-api_key_env (default GEMINI_API_KEY, then GOOGLE_API_KEY), system_prompt.
+api_key_env (default GEMINI_API_KEY, then GOOGLE_API_KEY), system_prompt, sdk_retries.
 """
 
 import json
@@ -37,6 +40,8 @@ from behavior_interpretation.fields import to_gemini_dialect
 from behavior_interpretation.interpreters.llm.backends.base import Backend
 from behavior_interpretation.interpreters.llm.backends.base import BackendError
 from behavior_interpretation.interpreters.llm.backends.base import GenerateResult
+from behavior_interpretation.interpreters.llm.backends.retries import GENAI_SDK
+from behavior_interpretation.interpreters.llm.backends.retries import route_policy
 from behavior_interpretation.interpreters.llm.backends.transport import api_key_from
 from behavior_interpretation.interpreters.llm.backends.transport import httpx_body
 from behavior_interpretation.interpreters.llm.backends.transport import post_json
@@ -54,6 +59,10 @@ def nlohmann_body(payload):
 class GeminiBackend(Backend):
 
     kind = 'gemini'
+
+    def __init__(self, options=None, node=None):
+        super().__init__(options, node)
+        self.retries = route_policy(self, GENAI_SDK)
 
     def url(self, model):
         base = (self.option('url') or DEFAULT_URL).rstrip('/')
@@ -101,7 +110,8 @@ class GeminiBackend(Backend):
 
     def generate(self, model, prompt, schema, images, limits, question=''):
         payload = self.build_payload(model, prompt, schema, images, limits)
-        answer = post_json(self.url(model), self.body(payload), self.headers(), limits.timeout_s)
+        answer = post_json(self.url(model), self.body(payload), self.headers(), limits.timeout_s,
+                           self.retries, limits)
         if answer.get('error'):
             raise BackendError(f'gemini: {answer["error"]}')
         text = None

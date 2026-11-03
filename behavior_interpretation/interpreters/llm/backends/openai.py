@@ -28,8 +28,11 @@ Two dialects, each the request of one of the current gateways:
   Python SDK sends, byte for byte: its keys in the SDK's order (model, stream, messages, then
   the others in alphabetical order), serialized as httpx does.
 
+With `sdk_retries` (by default in the `llm_manager` dialect only), a request that fails
+before the answer starts is repeated as the openai SDK does (retries.py).
+
 Options of the route: url (base, default https://api.openai.com/v1), dialect, api_key_env
-(default OPENAI_API_KEY, if set), temperature, reasoning_effort, system_prompt.
+(default OPENAI_API_KEY, if set), temperature, reasoning_effort, system_prompt, sdk_retries.
 """
 
 import copy
@@ -39,6 +42,8 @@ from behavior_interpretation.fields import strict_schema
 from behavior_interpretation.interpreters.llm.backends.base import Backend
 from behavior_interpretation.interpreters.llm.backends.base import BackendError
 from behavior_interpretation.interpreters.llm.backends.base import GenerateResult
+from behavior_interpretation.interpreters.llm.backends.retries import OPENAI_SDK
+from behavior_interpretation.interpreters.llm.backends.retries import route_policy
 from behavior_interpretation.interpreters.llm.backends.transport import api_key_from
 from behavior_interpretation.interpreters.llm.backends.transport import httpx_body
 from behavior_interpretation.interpreters.llm.backends.transport import post_json
@@ -93,6 +98,10 @@ def _image_parts(images):
 class OpenAIBackend(Backend):
 
     kind = 'openai'
+
+    def __init__(self, options=None, node=None):
+        super().__init__(options, node)
+        self.retries = route_policy(self, OPENAI_SDK)
 
     def url(self):
         return (self.option('url') or 'https://api.openai.com/v1').rstrip('/') + \
@@ -160,7 +169,8 @@ class OpenAIBackend(Backend):
         payload = self.build_payload(model, prompt, schema, images, limits)
         if payload.get('stream'):
             return self._streamed(httpx_body(payload), limits, model)
-        answer = post_json(self.url(), urllib_body(payload), self.headers(), limits.timeout_s)
+        answer = post_json(self.url(), urllib_body(payload), self.headers(), limits.timeout_s,
+                           self.retries, limits)
         if answer.get('error'):
             raise BackendError(f'openai: {answer["error"]}')
         choices = answer.get('choices') or [{}]
@@ -174,7 +184,8 @@ class OpenAIBackend(Backend):
         refusal = ''
         usage = {}
         version = model
-        for line in post_lines(self.url(), body, self.headers(), limits.timeout_s):
+        for line in post_lines(self.url(), body, self.headers(), limits.timeout_s, self.retries,
+                               limits):
             if not line.startswith('data:'):
                 continue
             data = line[len('data:'):].strip()

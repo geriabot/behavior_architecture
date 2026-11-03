@@ -324,6 +324,22 @@ What the implementation adds to, or changes from, sections 3 to 10:
   in the environments, so its serialization was not compared), without streaming and without
   the gateway's prompt-caching markers (`cache_prefix_len`), which the server has no way to
   place.
+- **SDK retries.** The gateway's SDKs repeat a failed request by themselves, so the
+  `llm_manager` dialects do the same (route option `sdk_retries`, default true in that dialect
+  and false in `llm_router`, so that attention's requests are unchanged): openai and anthropic
+  at most 2 retries after a connection error or the statuses 408, 409, 429 and 500 and above
+  (`x-should-retry` first), with the server's `retry-after` (up to 120 s for openai, which does
+  not retry beyond it, and 60 s for anthropic) or 0.5 s doubling, at most 8 s, less up to 25 %
+  of jitter; google-genai none, since the gateway's client sets no retry options. The number
+  of requests and the delays were compared, scenario by scenario, with the SDKs themselves
+  (openai 3.39 and google-genai 2.33 of the interaction system's environment; anthropic 0.84,
+  which that environment lacks, from the user's site packages) against the same local server
+  that fails as scripted (`test/interpretation/sdk_retries_reference.py`; the recorded
+  behavior is in `sdk_retries_reference.json`). One deviation: the SDK gives every request
+  the whole timeout, whereas here the requests and the delays of one attempt share its limit
+  (`timeout_s` or the budget left), so that `timeout_s` and `budget_s` still bound a call; a
+  request that times out is therefore not repeated, a delay that would reach the limit is not
+  waited, and a cancelled call sends no further request.
 - **Text answers and the reading of an answer.** A question with `parse: text` receives the
   model's text unparsed, as `{"text": <text>}`, without a schema; an empty text is invalid
   unless the question has `allow_empty`. The answer stays a JSON object, so that the service,

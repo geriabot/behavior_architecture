@@ -33,8 +33,11 @@ serialization. The gateway's prompt caching (`cache_prefix_len`) is not reproduc
 interpretation server sends no cache markers. Images are sent as PNG blocks (the gateway
 sends none).
 
+With `sdk_retries` (true by default, since the dialect is `llm_manager`), a failed request
+is repeated as the anthropic SDK does (retries.py).
+
 Options of the route: url (default https://api.anthropic.com), dialect (llm_manager),
-api_key_env (default ANTHROPIC_API_KEY), effort, system_prompt.
+api_key_env (default ANTHROPIC_API_KEY), effort, system_prompt, sdk_retries.
 """
 
 import copy
@@ -43,6 +46,8 @@ import json
 from behavior_interpretation.interpreters.llm.backends.base import Backend
 from behavior_interpretation.interpreters.llm.backends.base import BackendError
 from behavior_interpretation.interpreters.llm.backends.base import GenerateResult
+from behavior_interpretation.interpreters.llm.backends.retries import ANTHROPIC_SDK
+from behavior_interpretation.interpreters.llm.backends.retries import route_policy
 from behavior_interpretation.interpreters.llm.backends.transport import api_key_from
 from behavior_interpretation.interpreters.llm.backends.transport import httpx_body
 from behavior_interpretation.interpreters.llm.backends.transport import post_json
@@ -75,6 +80,10 @@ def claude_schema(schema):
 class AnthropicBackend(Backend):
 
     kind = 'anthropic'
+
+    def __init__(self, options=None, node=None):
+        super().__init__(options, node)
+        self.retries = route_policy(self, ANTHROPIC_SDK)
 
     def url(self):
         return (self.option('url') or DEFAULT_URL).rstrip('/') + '/v1/messages'
@@ -123,14 +132,16 @@ class AnthropicBackend(Backend):
         payload = self.build_payload(model, prompt, schema, images, limits)
         headers = self.headers(model)
         try:
-            answer = post_json(self.url(), httpx_body(payload), headers, limits.timeout_s)
+            answer = post_json(self.url(), httpx_body(payload), headers, limits.timeout_s,
+                               self.retries, limits)
         except BackendError as exc:
             # A schema the API cannot compile: once more without it (the gateway's retry)
             if exc.status != 400 or 'format' not in payload['output_config']:
                 raise
             payload['output_config'] = {k: v for k, v in payload['output_config'].items()
                                         if k != 'format'}
-            answer = post_json(self.url(), httpx_body(payload), headers, limits.timeout_s)
+            answer = post_json(self.url(), httpx_body(payload), headers, limits.timeout_s,
+                               self.retries, limits)
         if answer.get('type') == 'error' or answer.get('error'):
             raise BackendError(f'anthropic: {json.dumps(answer.get("error", answer))[:500]}')
         usage = answer.get('usage') or {}

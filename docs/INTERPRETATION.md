@@ -288,9 +288,9 @@ attempt). The other keys are options of the backend.
 | Backend | Options (default) |
 |---|---|
 | `ollama` | `url` (`http://localhost:11434`), `dialect` (`llm_router`), `temperature` (0), `num_ctx`, `keep_alive`, `think` (`false`), `stream` (`true` in `llm_manager`), `system_prompt`, `api_key_env` (only behind a proxy that needs a key) |
-| `openai` | `url` (`https://api.openai.com/v1`; any OpenAI-compatible API), `dialect` (`llm_router`), `api_key_env` (`OPENAI_API_KEY` when `url` is not set), `temperature` (0), `reasoning_effort` (`none`), `system_prompt` |
-| `gemini` | `url` (`https://generativelanguage.googleapis.com`), `dialect` (`llm_router`), `api_key_env` (`GEMINI_API_KEY`, then `GOOGLE_API_KEY`), `system_prompt` |
-| `anthropic` | `url` (`https://api.anthropic.com`), `dialect` (`llm_manager`, the only one), `api_key_env` (`ANTHROPIC_API_KEY`), `effort` (`low`; `""` sends none), `system_prompt` |
+| `openai` | `url` (`https://api.openai.com/v1`; any OpenAI-compatible API), `dialect` (`llm_router`), `api_key_env` (`OPENAI_API_KEY` when `url` is not set), `temperature` (0), `reasoning_effort` (`none`), `system_prompt`, `sdk_retries` (`true` in `llm_manager`) |
+| `gemini` | `url` (`https://generativelanguage.googleapis.com`), `dialect` (`llm_router`), `api_key_env` (`GEMINI_API_KEY`, then `GOOGLE_API_KEY`), `system_prompt`, `sdk_retries` (`true` in `llm_manager`) |
+| `anthropic` | `url` (`https://api.anthropic.com`), `dialect` (`llm_manager`, the only one), `api_key_env` (`ANTHROPIC_API_KEY`), `effort` (`low`; `""` sends none), `system_prompt`, `sdk_retries` (`true`) |
 | `llama_ros` | `action` (`/llama/generate_response`); needs llama_ros and its action server |
 | `fake` | `answers` (a list, used in order, the last one repeated), `by_question` (`{<question>: [answers]}`, used before `answers`), `delay_s` (0), `model_version` (`fake`). The answer `!timeout` simulates a timeout and `!down` an unreachable model. |
 | `recorded` | `log_files`: a call log file, a directory with `calls.jsonl`, or a list of them ([Call log and replay](#call-log-and-replay)) |
@@ -323,10 +323,36 @@ Images are sent in the order of the request, encoded once as lossless PNG withou
 (except as noted for Gemini). Supported encodings: `rgb8`, `bgr8`, `8UC3` (read as RGB),
 `rgba8`, `bgra8`, `mono8`, `8UC1`.
 
+### SDK retries
+
+The interaction system's gateway called the cloud APIs through their official Python SDKs,
+which repeat a failed HTTP request by themselves. A route of the `openai`, `gemini` or
+`anthropic` backend with `sdk_retries: true` repeats it in the same way; it is the default in
+the `llm_manager` dialect, and `false` in the `llm_router` dialect (attention's router did not
+retry), where it can also be set to `true`. The `ollama` and `llama_ros` backends do not retry
+(the gateway's Ollama client did not).
+
+| Backend | Retries (the SDK's defaults) |
+|---|---|
+| `openai` | As the openai SDK (3.39): at most 2, after a connection error or an HTTP status 408, 409, 429 or 500 and above; a header `x-should-retry: true` or `false` decides first. The delay is the server's `retry-after-ms` or `retry-after` (seconds or a date) when it is above 0 and at most 120 s; otherwise 0.5 s, then 1 s (doubling, at most 8 s), each less a random 0 to 25 %. When the server asks for more than 120 s, the request is not retried. |
+| `anthropic` | As the anthropic SDK (0.84): the same, except that the server's delay is followed up to 60 s, and a longer one is replaced by the SDK's own delay. |
+| `gemini` | As the google-genai SDK (2.33) with the gateway's client, which sets no retry options: none. |
+
+A stream that has started is not repeated (as in the SDKs, only a request that fails before
+the answer starts is). The SDK gives each request its whole timeout; here, so that a call stays
+within its limits, the requests of one attempt and the delays between them share the attempt's
+limit (the route's `timeout_s`, or what is left of the request's `budget_s`): a request gets
+only the time left, a delay that would reach the limit is not waited (the last error is the
+attempt's), and a request that times out is therefore not repeated. A cancelled call sends no
+further request. These retries are part of one attempt; the question's `max_retries` repeats
+attempts on top of them. The call log counts them in the attempt (`sdk_retries`, only when
+there were any).
+
 ### Limits and budget
 
 Each attempt is limited by the route's `timeout_s` and by what remains of the request's
-`budget_s` (0: no budget). A timed-out attempt fails with `timeout`, or with `budget` when the
+`budget_s` (0: no budget), including the requests that the route's `sdk_retries` repeat
+([SDK retries](#sdk-retries)). A timed-out attempt fails with `timeout`, or with `budget` when the
 budget was the shorter limit; a budget spent before an attempt also fails with `budget`. An
 unreachable model or an HTTP error fails with `model_down`; an answer that does not validate
 fails with `invalid`. Failed attempts are retried up to `max_retries`.
@@ -639,7 +665,7 @@ image is saved once as `<log_dir>/images/<sha256>.png`.
 | `interpreters`, `interpreter` | The chain tried, and the interpreter that answered or failed last (`""` if every one declined). |
 | `route`, `backend`, `model`, `prompt`, `schema` | What the model received (when `llm` was called). |
 | `rule` | The rule applied (when `rule` was called). |
-| `attempts` | Every attempt: `raw`, `error`, `latency_s`, `prompt_tokens`, `completion_tokens`. |
+| `attempts` | Every attempt: `raw`, `error`, `latency_s`, `prompt_tokens`, `completion_tokens`, and `sdk_retries` when the route's SDK retries repeated its request. |
 | `raw_answer` | The text of the last attempt. |
 | `answer`, `source`, `fallback_reason`, `message`, `success` | The response. |
 | `latency_s`, `tokens`, `model_version` | The whole call's latency, the tokens of all its attempts, and the model version that the backend reported. |
