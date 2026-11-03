@@ -680,7 +680,7 @@ log, by question and prompt, so that a run is reproduced without a model.
 |---|---|---|
 | `mission_executor` | base | `mission_executor <config.yaml> [--save-exec] [--exec-dir PATH] [--replan-active true\|false]` ([Mission configuration](#mission-configuration)). |
 | `simple_example`, `restaurant_example` | base | The example orchestrators with a `main` of their own: `simple_example [config.yaml]`, `restaurant_example [config.yaml]` (default: the installed `config/simple_config.yaml` or `config/restaurant_config.yaml`). `mission_executor` supersedes them. |
-| `test_plan_executor` | base | `test_plan_executor <directory>`: a development tool that loads the XML trees of a directory, in file-name order, into one runner, with the plugin `libsocial_bt_nodes_plugin.so`. |
+| `test_plan_executor` | base | `test_plan_executor <directory> [plugin_library ...]`: a development tool that runs the XML trees of a directory, in file-name order, in one runner, until one fails; the BT plugin libraries default to `libsocial_bt_nodes_plugin.so`. |
 | `static_tf_publisher` | base | Publishes the static transforms of a YAML file (parameter `tf_file`; key `static_transforms`, each entry with `base_frame` (default `map`), `child_frame`, `x`, `y`, `z`, `yaw`). |
 | `interpretation_server` | interpretation | The interpretation server ([docs/INTERPRETATION.md](docs/INTERPRETATION.md#server-parameters)). |
 | `llm_plan_executor` | LLM | The `llm` orchestrator with built-in defaults. |
@@ -725,6 +725,7 @@ colcon test-result --verbose
 | Test | What it checks |
 |---|---|
 | `test_base_orchestrator` (gtest) | `BehaviorRunner` and `BaseOrchestrator`: a tree that cannot be built (a tree ID that is a node ID, a missing file, an unknown node) fails the activation with its reason and is reported as `FAILURE`; the runners of the YAML and those registered in code. |
+| `test_test_plan_executor` (pytest) | `test_plan_executor` runs the trees of a directory in order, and stops at one that fails or cannot be built. |
 | `test_interpretation_server` (pytest) | The server with the `fake` and `recorded` backends: questions, fields, validation, chains, budgets, fallbacks, images, backend requests, the call log and its replay. No model is contacted. |
 | `test_interpretation_client` (gtest) | `InterpretationClient` against a fake server node: non-blocking calls, namespaces, timeouts, cancellation, `choose_behavior`. |
 | `test_interpretation_bt_nodes` (gtest) | `Interpret` and `InterpretationResult`, loaded as a plugin. |

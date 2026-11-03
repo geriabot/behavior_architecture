@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iostream>
 #include <behaviortree_cpp/bt_factory.h>
+#include "lifecycle_msgs/msg/state.hpp"
 
 namespace behavior_architecture {
 
@@ -31,8 +32,9 @@ TestPlanOrchestrator::TestPlanOrchestrator(BT::Blackboard::Ptr blackboard)
 void TestPlanOrchestrator::run_plan_from_dir(const std::string& plan_dir) {
     bt_files_.clear();
     RCLCPP_INFO(get_logger(), "Using plan_dir: %s", plan_dir.c_str());
-    if (!std::filesystem::exists(plan_dir)) {
+    if (!std::filesystem::is_directory(plan_dir)) {
         RCLCPP_ERROR(get_logger(), "Directory does not exist: %s", plan_dir.c_str());
+        return;
     }
     for (const auto& entry : std::filesystem::directory_iterator(plan_dir)) {
         if (entry.path().extension() == ".xml") {
@@ -93,10 +95,19 @@ void TestPlanOrchestrator::control_cycle() {
             std::string bt_xml((std::istreambuf_iterator<char>(bt_file)), std::istreambuf_iterator<char>());
             runner->set_bt(bt_xml);
             runner->refresh();
-            RCLCPP_INFO(get_logger(), "Triggering CONFIGURE transition.");
-            runner->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+            if (runner->get_current_state().id() ==
+                lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED) {
+                RCLCPP_INFO(get_logger(), "Triggering CONFIGURE transition.");
+                runner->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+            }
             RCLCPP_INFO(get_logger(), "Triggering ACTIVATE transition.");
-            runner->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
+            if (runner->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE).id() !=
+                lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+                RCLCPP_ERROR(get_logger(), "Behavior tree failed: %s: %s",
+                    bt_files_[current_bt_idx_].c_str(), runner->activation_error().c_str());
+                state_ = State::FAILURE;
+                return;
+            }
             RCLCPP_INFO(get_logger(), "Executing behavior tree: %s", bt_files_[current_bt_idx_].filename().c_str());
             state_ = State::EXECUTING_BT;
             break;

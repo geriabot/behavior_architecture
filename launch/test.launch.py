@@ -15,7 +15,6 @@ def launch_setup(context, *args, **kwargs):
         Node(
             package='behavior_architecture',
             executable='test_plan_executor',
-            name='test_plan_executor',
             output='screen',
             emulate_tty=True,
             arguments=[plan_dir],

@@ -398,6 +398,15 @@ if(BUILD_TESTING)
     target_link_libraries(test_base_orchestrator ${PROJECT_NAME})
     ament_target_dependencies(test_base_orchestrator ${dependencies})
   endif()
+
+  # test_plan_executor runs the trees of a directory (with a plugin that has no dependencies)
+  cmake_language(CALL ${_interpretation_add_pytest} test_test_plan_executor
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/base/test_test_plan_executor.py"
+    ENV
+      TEST_PLAN_EXECUTOR=$<TARGET_FILE:test_plan_executor>
+      TEST_PLAN_PLUGIN=$<TARGET_FILE:${PROJECT_NAME}_interpretation_bt_nodes>
+    TIMEOUT 120
+  )
 endif()
 
 if(BUILD_TESTING)
