@@ -397,7 +397,9 @@ if(BUILD_TESTING)
   )
   if(TARGET test_base_orchestrator)
     target_link_libraries(test_base_orchestrator ${PROJECT_NAME})
-    ament_target_dependencies(test_base_orchestrator ${dependencies})
+    # Targets only (no ament_target_dependencies): the same line builds on Jazzy and Lyrical
+    target_link_libraries(test_base_orchestrator rclcpp::rclcpp rclcpp_lifecycle::rclcpp_lifecycle
+      behaviortree_cpp::behaviortree_cpp ament_index_cpp::ament_index_cpp ${std_msgs_TARGETS})
   endif()
   ament_add_gtest(test_episodic_memory_files test/base/test_episodic_memory_files.cpp)
 
