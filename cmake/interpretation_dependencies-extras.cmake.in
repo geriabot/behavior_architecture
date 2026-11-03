@@ -1,0 +1,25 @@
+# Interpretation, opt-in (interpretation-extras.cmake): the packages that its targets link.
+#
+# Included after the package's other config files, once the default variables
+# (behavior_architecture_LIBRARIES, _INCLUDE_DIRS, ...) are computed, so that they are not
+# changed. A missing dependency does not fail the package, whose base does not need it: it
+# only sets behavior_architecture_INTERPRETATION_FOUND to FALSE.
+
+set(_behavior_architecture_interpretation_dependencies "@_interpretation_export_dependencies@")
+
+set(behavior_architecture_INTERPRETATION_FOUND TRUE)
+foreach(_dep ${_behavior_architecture_interpretation_dependencies})
+  if(NOT ${_dep}_FOUND)
+    find_package(${_dep} QUIET)
+  endif()
+  if(NOT ${_dep}_FOUND)
+    set(behavior_architecture_INTERPRETATION_FOUND FALSE)
+  endif()
+endforeach()
+
+if(NOT behavior_architecture_INTERPRETATION_FOUND AND NOT behavior_architecture_FIND_QUIETLY)
+  message(STATUS "behavior_architecture: a dependency of interpretation was not found: "
+    "behavior_architecture::interpretation cannot be linked")
+endif()
+
+unset(_behavior_architecture_interpretation_dependencies)

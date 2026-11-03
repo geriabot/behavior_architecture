@@ -1,0 +1,18 @@
+# A narrow question to the interpretation server (docs/INTERPRETATION_DESIGN.md, section 4).
+# The server keeps no state: everything the question needs travels with the request.
+
+string question             # registered name, e.g. "choose_behavior", "extract_turn"
+string request_id           # who asks (a request, a dialogue): for logging and replay only
+string context              # JSON object: what the question's template and validation need
+string text                 # optional free text (a user's line, a task), usable by the template
+sensor_msgs/Image[] images  # optional, zero or more (a frame, several views, a short sequence);
+                            # sent only to the questions that use images
+float64 budget_s            # time left for this answer; 0 = only the per-call limit
+string variant              # optional: a variant of the question; empty = the server's own
+---
+bool success                # false only if the question is unknown or the request malformed
+string answer               # JSON object, valid against the question's schema (empty if invalid)
+string source               # the interpreter that answered ("llm", "rule", ...), or
+                            # "fallback" or "invalid"
+string fallback_reason      # why: "timeout", "invalid", "model_down", "budget", "declined"
+string message              # a readable explanation (errors, retries)
