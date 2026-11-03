@@ -57,8 +57,12 @@ def image_to_png(image):
 
 
 def image_to_jpeg(image, quality=95):
-    """JPEG bytes of a sensor_msgs/Image as attention's Gemini bridge makes them: converted to bgr8
-    (as cv_bridge::toCvCopy(image, "bgr8")), not resized, encoded by OpenCV at the given quality."""
+    """
+    Return the JPEG bytes of a sensor_msgs/Image as attention's Gemini bridge makes them.
+
+    The image is converted to bgr8 (as cv_bridge::toCvCopy(image, "bgr8")), not resized, and
+    encoded by OpenCV at the given quality.
+    """
     try:
         import cv2
         import numpy as np
@@ -92,7 +96,7 @@ class EncodedImage:
 
     @property
     def jpeg_base64(self):
-        """The base64 of the image as JPEG (quality 95), computed once (Gemini, attention's bridge)."""
+        """Return the base64 of the image as JPEG (quality 95), computed once (Gemini)."""
         if getattr(self, '_jpeg_base64', None) is None:
             self._jpeg_base64 = base64.b64encode(image_to_jpeg(self.message)).decode()
         return self._jpeg_base64

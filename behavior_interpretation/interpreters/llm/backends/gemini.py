@@ -76,7 +76,8 @@ class GeminiBackend(Backend):
         for image in images:
             if self.dialect() == 'llm_router':
                 # As attention's bridge: JPEG, quality 95, image/jpeg
-                parts.append({'inline_data': {'mime_type': 'image/jpeg', 'data': image.jpeg_base64}})
+                parts.append({'inline_data': {'mime_type': 'image/jpeg',
+                                              'data': image.jpeg_base64}})
             else:
                 parts.append({'inline_data': {'mime_type': 'image/png', 'data': image.base64}})
         if self.dialect() == 'llm_router':
