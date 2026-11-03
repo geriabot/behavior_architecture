@@ -115,6 +115,10 @@ class GeminiBackend(Backend):
         if text is None:
             raise BackendError('gemini: no candidates in the answer')
         usage = answer.get('usageMetadata') or {}
-        return GenerateResult(strip_code_fence(text), usage.get('promptTokenCount', 0),
+        if self.dialect() != 'llm_router':
+            text = strip_code_fence(text)
+        # llm_router: the text as attention's bridge returned it (llm_router parsed it without
+        # removing a code fence; parse: loose removes it)
+        return GenerateResult(text, usage.get('promptTokenCount', 0),
                               usage.get('candidatesTokenCount', 0),
                               answer.get('modelVersion', model))

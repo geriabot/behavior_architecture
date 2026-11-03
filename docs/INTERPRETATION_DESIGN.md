@@ -164,8 +164,8 @@ the server's `question_modules` parameter, like the interaction system's `skill_
 
 One call, step by step: look up the question; if a rule is configured, answer with it; otherwise
 build the prompt, call the backend of its route with the structured-output schema (and the image
-if the question uses one), parse loosely, validate (schema, `choices_from`, the class's
-`validate`), retry a failed or invalid answer up to the question's `max_retries` (0 = none) within
+if the question uses one), parse loosely (or strictly, `parse: strict`), validate (schema,
+unless `validate: object`, `choices_from`, the class's `validate`), retry a failed or invalid answer up to the question's `max_retries` (0 = none) within
 the per-call limit and the budget (`budget_s` = 0 cuts nothing), and fall back, or answer
 `invalid` if the question has no fallback. The server keeps no state between calls
 (no per-request memory; the model sessions, if a backend uses them, are not conversation history).

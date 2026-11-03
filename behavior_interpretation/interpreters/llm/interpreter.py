@@ -17,11 +17,11 @@ The `llm` interpreter: the question's prompt to the model of its route, and its 
 
 One call: build the prompt (the question's template, or its class's build_prompt), call the
 backend of the question's route with the structured-output schema and the images (if the
-question uses them), parse loosely and validate (the fields, choices_from and the class's
-validate). A failed or invalid answer is retried up to the question's max_retries (0 = no
-retry). Each attempt is limited by the route's timeout_s and by what is left of the
-request's budget (budget_s 0 cuts nothing); when the budget is spent the call fails with the
-reason `budget`.
+question uses them), parse (loosely, or strictly with `parse: strict`) and validate (the
+fields, unless `validate: object`, choices_from and the class's validate). A failed or invalid
+answer is retried up to the question's max_retries (0 = no retry). Each attempt is limited by
+the route's timeout_s and by what is left of the request's budget (budget_s 0 cuts nothing);
+when the budget is spent the call fails with the reason `budget`.
 
 A route names a backend, a model and the backend's options:
 
@@ -43,7 +43,7 @@ from behavior_interpretation.interpreters.llm.backends import Limits
 from behavior_interpretation.questions import ConfigError
 from behavior_interpretation.questions import Question
 from behavior_interpretation.validation import InvalidAnswer
-from behavior_interpretation.validation import parse_answer
+from behavior_interpretation.validation import PARSERS
 
 DEFAULT_TIMEOUT_S = 120.0
 
@@ -145,7 +145,8 @@ class LLMInterpreter(Interpreter):
                             'completion_tokens': result.completion_tokens})
             call.details['model_version'] = result.model_version
             try:
-                answer = check_answer(question, call, parse_answer(result.text))
+                parse = PARSERS[question.spec.get('parse', 'loose')]
+                answer = check_answer(question, call, parse(result.text))
             except InvalidAnswer as exc:
                 attempt['invalid'] = str(exc)
                 reason = 'invalid'

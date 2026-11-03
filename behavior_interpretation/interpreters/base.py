@@ -85,11 +85,12 @@ def check_answer(question, call, answer):
     """
     Validate an answer for the question: fields, choices_from and the class's validate.
 
-    A question with a raw schema and no fields only needs an object. Raises InvalidAnswer.
+    A question with a raw schema and no fields only needs an object, and so does a question
+    with `validate: object`, whose fields only make the schema. Raises InvalidAnswer.
     """
     if not isinstance(answer, dict):
         raise InvalidAnswer('the answer is not an object')
-    if call.fields:
+    if call.fields and question.spec.get('validate', 'fields') == 'fields':
         answer = validate_fields(answer, call.fields)
     choices = question.choices(call.context)
     if choices is not None:

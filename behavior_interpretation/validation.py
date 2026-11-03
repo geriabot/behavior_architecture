@@ -13,14 +13,16 @@
 # limitations under the License.
 
 """
-Loose parsing of a model's answer and its validation against the question's fields.
+Parsing of a model's answer and its validation against the question's fields.
 
-Parsing is loose: a code fence around the JSON, a reasoning block before it, or text around
-the object are tolerated, and a list is read as its first object (as llm_router does).
+Parsing is loose by default: a code fence around the JSON, a reasoning block before it, or
+text around the object are tolerated, and a list is read as its first object (as llm_router
+does). With `parse: strict` the whole text must be JSON, as llm_router read it.
 Validation is strict about what the asker receives: every field present, with its type. A
 value written as the wrong JSON type but readable as the right one is converted (the string
 "3" for an int field: llm_router passes every value as a string and attention reads it with
-std::stoi, so these answers are valid today).
+std::stoi, so these answers are valid today). With `validate: object` the parsed object is
+returned as it is, and the asker checks it.
 """
 
 import json
@@ -96,6 +98,32 @@ def parse_answer(text):
     if not isinstance(parsed, dict):
         raise InvalidAnswer('not a JSON object or a list with one object')
     return parsed
+
+
+def parse_answer_strict(text):
+    """
+    Return the JSON object of a model's answer, read as llm_router read it.
+
+    Raise InvalidAnswer if there is none. The whole text must be JSON: no reasoning block or
+    text around it (a code fence is removed, or not, by the backend, as llm_router did). A
+    list gives its first item.
+    """
+    if text is None:
+        raise InvalidAnswer('empty answer')
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        raise InvalidAnswer(f'not JSON: {str(text)[:200]!r}') from None
+    if isinstance(parsed, list):
+        if not parsed:
+            raise InvalidAnswer('an empty list')
+        parsed = parsed[0]
+    if not isinstance(parsed, dict):
+        raise InvalidAnswer('not a JSON object or a list with one object')
+    return parsed
+
+
+PARSERS = {'loose': parse_answer, 'strict': parse_answer_strict}
 
 
 def _coerce(value, kind, name):

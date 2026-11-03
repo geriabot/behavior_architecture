@@ -167,6 +167,8 @@ questions:
 | `fallback` | none | `none`, or the answer to give when there is no valid one. A value that is not an object needs exactly one field and becomes `{<field>: <value>}`. |
 | `route` | `""` | The route of the `llm` interpreter; empty: `default_route`. |
 | `max_tokens` | `0` | Token cap of the answer (0: none). Sent only by the `llm_manager` dialects. |
+| `parse` | `loose` | How the model's text is read: `loose` or `strict` ([Validation](#validation)). |
+| `validate` | `fields` | `fields`: the answer must have the fields, typed; `object`: the parsed object is returned as it is ([Validation](#validation)). |
 | `rule` | `""` | The rule of the `rule` interpreter when the chain does not name one. Empty: the question class's `answer_without_model()`. |
 | `output_formatter` | `""` | A formatter, registered by a question module, that writes `{output_format}`. |
 | `class` | `""` | A `Question` subclass of a question module for this question. |
@@ -206,6 +208,17 @@ is then validated strictly:
 - The question class's `validate()`, if any, may reject the answer or change it.
 
 The answers of rules are validated the same way.
+
+Two keys of a question change this, for a system that must read its answers exactly as its
+former gateway did:
+
+| Key | Value | Effect |
+|---|---|---|
+| `parse` | `strict` | The whole text must be JSON (`json.loads`): an object, or a list whose first item is an object. A `<think>` block or text around the JSON makes the answer invalid. A code fence is removed only where `llm_router` removed it: by the `ollama` and `openai` backends, not by `gemini` (in the `llm_router` dialect) or `llama_ros`. |
+| `validate` | `object` | The parsed object is returned as it is: any keys, any JSON types, `{}` included. The fields (or `fields_from`) still make the schema and `{output_format}`; `choices_from` and the class's `validate()` still apply. The asker checks the answer. |
+
+`parse: strict` with `validate: object` is what the attention system's `llm_router` returned:
+every key of the object, which the asker then read field by field.
 
 ## The templates file
 

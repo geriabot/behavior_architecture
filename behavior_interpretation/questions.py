@@ -30,6 +30,8 @@ questions:
     fallback: none               # none (the result is `invalid`) or a value
     route: behavior_input_with_image   # the llm interpreter's route (default_route if absent)
     max_tokens: 50               # 0: no cap
+    parse: loose                 # loose (default) or strict: the whole text must be JSON
+    validate: fields             # fields (default) or object: the parsed object as it is
     rule: most_centered          # the rule of the `rule` interpreter (default: the class's
                                  #   answer_without_model)
     output_formatter: ''         # a formatter registered by a question module
@@ -74,12 +76,16 @@ DEFAULTS = {
     'fallback': None,
     'route': '',
     'max_tokens': 0,
+    'parse': 'loose',
+    'validate': 'fields',
     'rule': '',
     'output_formatter': '',
     'class': '',
     'variants': {},
 }
 
+PARSE_MODES = ('loose', 'strict')
+VALIDATE_MODES = ('fields', 'object')
 USES_IMAGE = {True: 'true', False: 'false', 'true': 'true', 'false': 'false',
               'optional': 'optional'}
 
@@ -284,6 +290,10 @@ def resolve_spec(name, definition, variant=''):
         spec.update(copy.deepcopy(changes))
     if spec.get('uses_image', False) not in USES_IMAGE:
         raise ConfigError(f'{name}: uses_image must be true, false or optional')
+    if spec.get('parse') not in PARSE_MODES:
+        raise ConfigError(f'{name}: parse must be loose or strict')
+    if spec.get('validate') not in VALIDATE_MODES:
+        raise ConfigError(f'{name}: validate must be fields or object')
     return spec
 
 
