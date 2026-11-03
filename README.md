@@ -23,6 +23,7 @@ extra source packages and are built only when those are in the workspace
 - [Mission configuration](#mission-configuration)
 - [Writing an orchestrator](#writing-an-orchestrator)
 - [LLM orchestrators (optional)](#llm-orchestrators-optional)
+- [Interpretation (optional)](#interpretation-optional)
 - [Executables and launch files](#executables-and-launch-files)
 - [ROS 2 Lyrical](#ros-2-lyrical)
 - [Used by](#used-by)
@@ -95,7 +96,7 @@ root of this repository.
 
 | Layer | Brings | Source dependencies |
 |---|---|---|
-| **Base** | `libbehavior_architecture` (BaseOrchestrator, BehaviorRunner, OrchestratorFactory); `mission_executor` with the `simple` and `restaurant` examples and any plugin orchestrator; `test_plan_executor`, `static_tf_publisher` | none (`thirdparty.repos` is empty) |
+| **Base** | `libbehavior_architecture` (BaseOrchestrator, BehaviorRunner, OrchestratorFactory); `mission_executor` with the `simple` and `restaurant` examples and any plugin orchestrator; `test_plan_executor`, `static_tf_publisher`; interpretation, built with the base and linked only by the packages that ask for it (the `Interpret` service, `interpretation_server`, `libbehavior_architecture_interpretation`, the BT nodes `Interpret` and `InterpretationResult`) | none (`thirdparty.repos` is empty) |
 | **LLM orchestrators** | types `llm` and `mcp` in `mission_executor`; executables `llm_plan_executor`, `llm_bt_executor`, `start_mission` | `llm.repos`: [llm_bt_builder](https://github.com/rodperex/llm_bt_builder), [llm_planner](https://github.com/rodperex/llm_planner) |
 | **Examples** | the BT nodes used by `config/simple_config.yaml` and `config/restaurant_config.yaml` | `examples.repos`: [social_bt_nodes](https://github.com/rodperex/social_bt_nodes) |
 
@@ -299,6 +300,196 @@ For the LLM types the YAML has no `behaviors`. It has `plugin_libraries`, `bt_no
 workspace. The design of these orchestrators is in [ARCHITECTURE.md](ARCHITECTURE.md), and the BT
 generation evaluation in [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md).
 
+## Interpretation (optional)
+
+*Interpretation* turns what arrives without structure (a request in natural language, a line
+said by a person, a camera image) into a validated answer to a narrow question that a layer asks:
+which behavior fits this request, which values of a form this line gives, which of these
+detections is the target. It commands nothing: the orchestrator or the tree that asks decides
+what to do with the answer. It keeps no state between questions, so every question can be
+logged, replayed and tested on its own. The design is in
+[docs/INTERPRETATION_DESIGN.md](docs/INTERPRETATION_DESIGN.md).
+
+Interpretation is additive and opt-in: nothing of the base changes, and a package that does not
+use it builds, links and runs as before (it does not link any interpretation library; see
+[Linking interpretation](#linking-interpretation)). It consists of:
+
+| Part | What it is |
+|---|---|
+| `srv/Interpret.srv` | The query: `question`, `request_id`, `context` (a JSON object), `text`, `images` (zero or more), `budget_s` (0 = no budget), `variant`; the answer: `success`, `answer` (a JSON object), `source` (the interpreter that answered, `fallback` or `invalid`), `fallback_reason`, `message`. |
+| `interpretation_server` | The server (Python package `behavior_interpretation`): the questions of a system, answered by a chain of *interpreters*: `llm` (a model through a backend: `ollama`, `openai`-compatible, `gemini`, `llama_ros`, `fake`, `recorded`) and `rule` (deterministic code). One JSON line per call in the call log, which the `recorded` backend replays. |
+| `InterpretationClient` (`libbehavior_architecture_interpretation`) | A non-blocking C++ client that an orchestrator owns: `ask()` returns a handle that the control cycle polls; `choose_behavior()` offers behaviors and rejects an id that was not offered. |
+| `Interpret`, `InterpretationResult` (`libbehavior_architecture_interpretation_bt_nodes`) | BT nodes: ask without blocking the tree, waiting for the answer or picking it up later. |
+| `launch/interpretation.launch.py` | Launches a server in a namespace with its parameters file. |
+
+Each system launches its own server, in its own namespace, configured only at launch (its
+questions, templates, routes and interpreters); a request carries only what belongs to that call.
+The service name is relative (`interpretation/interpret`), and the client and the BT nodes
+resolve it in the namespace of their node.
+
+### Declaring the questions
+
+```yaml
+# questions.yaml (questions_file)
+questions:
+  choose_behavior:
+    template: choose_behavior              # a key of the templates file (or prompt: "...")
+    fields: ["int:behavior_id"]            # int, str, float, bool and arrays (int[]), with the
+                                           # system's own names; or fields_from: context.<key>;
+                                           # or schema: {...} (a JSON schema sent as it is)
+    choices_from: context.offered_ids      # the answer must be one of these (or -1)
+    interpreter: llm                       # or rule, or a chain: [rule, llm]
+    route: text                            # the backend and model of the llm interpreter
+    uses_image: false                      # true, false or optional; max_images: 1
+    max_retries: 0                         # 0 = no retry
+    fallback: none                         # none (the result is `invalid`) or a value
+    variants:
+      terse: {template: choose_behavior_terse}
+```
+
+```yaml
+# templates.yaml (templates_file): {key} of the context, {text}, {output_format}
+templates:
+  choose_behavior: "A robot was asked: {text}\nBehaviors:\n{offered_behaviors}\n{output_format}"
+```
+
+`{output_format}` is the JSON schema of the answer's fields, written as the attention system
+writes it today; a question module can register another formatter. The schemas sent to the
+backends, the images (lossless PNG, unresized, base64) and the request bodies reproduce those of
+the gateways that the systems use today (attention's `llm_router`, dialect `llm_router`, the
+default; the interaction system's `ros2_llm_manager`, dialect `llm_manager`), so that a model
+receives the same request.
+
+A question module (parameter `question_modules`) may add a `Question` subclass (to override
+`build_prompt`, `format_output`, `validate`, `fallback` or `answer_without_model`), rules and
+formatters:
+
+```python
+from behavior_interpretation import Question, rule
+
+
+@rule('most_centered')
+def most_centered(call):
+    """Answer only when the only field asked is the id of a detection (else decline)."""
+    if [f.name for f in call.fields] != ['id']:
+        return None
+    return min(call.context['detections'], key=lambda d: abs(d['x'] - 320))['id']
+```
+
+An interpreter that declines passes the call to the next one of the chain; if every one declines,
+or one fails, the result is the question's fallback or `invalid`, with the reason (`timeout`,
+`invalid`, `model_down`, `budget`, `declined`).
+
+### Server parameters
+
+```yaml
+/**/interpretation_server:
+  ros__parameters:
+    questions_file: package://my_robot/config/questions.yaml
+    templates_file: package://my_robot/config/templates.yaml
+    question_modules: ["my_robot.questions"]
+    default_route: text
+    routes:
+      text: {backend: ollama, model: qwen2.5vl:7b, url: "http://localhost:11434",
+             keep_alive: 30m, num_ctx: 8192, timeout_s: 180.0}
+    variants: {choose_behavior: terse}                     # optional
+    interpreter_overrides: {identify_target: "rule:most_centered"}   # optional
+    log_dir: /tmp/interpretation                            # "" = no log
+```
+
+Route options per backend: `ollama` (url, dialect, temperature, num_ctx, keep_alive, think,
+stream, system_prompt), `openai` (url, dialect, api_key_env, temperature, reasoning_effort,
+system_prompt), `gemini` (url, dialect, api_key_env, system_prompt), `llama_ros` (action; used only
+if llama_ros is installed and its action server is up), `fake` (answers, by_question, delay_s) and
+`recorded` (log_files). Every route has `timeout_s` (default 120 s), the limit of one call.
+
+```bash
+ros2 launch behavior_architecture interpretation.launch.py namespace:=my_robot \
+  params_file:=/path/to/interpretation_params.yaml
+# with mission_executor (default false: nothing changes without it)
+ros2 launch behavior_architecture mission_executor.launch.py config_file:=... \
+  interpretation:=true interpretation_params_file:=/path/to/interpretation_params.yaml
+```
+
+Without `params_file`, `config/interpretation/example_params.yaml` is used: two example questions
+answered by the `fake` backend, which runs without any model server.
+
+### Linking interpretation
+
+`find_package(behavior_architecture)` gives, in `behavior_architecture_LIBRARIES`,
+`_INCLUDE_DIRS`, `_DEPENDENCIES` and `_TARGETS`, only the base library and its dependencies, so
+`ament_target_dependencies(x behavior_architecture)` and
+`target_link_libraries(x ${behavior_architecture_LIBRARIES})` link only the base.
+Interpretation is linked by naming it:
+
+```cmake
+find_package(behavior_architecture REQUIRED)
+
+# The client (InterpretationClient), with the generated interface and its dependencies
+target_link_libraries(my_orchestrator behavior_architecture::interpretation)
+# or, the same as a list
+target_link_libraries(my_orchestrator ${behavior_architecture_INTERPRETATION_TARGETS})
+
+# Only the generated interface (behavior_architecture/srv/interpret.hpp)
+target_link_libraries(my_node ${behavior_architecture_INTERPRETATION_INTERFACE_TARGETS})
+```
+
+Either form can be added to a target that links the base with `ament_target_dependencies()` or
+with `${behavior_architecture_LIBRARIES}`; `behavior_architecture::interpretation` alone does
+not link the base library. `behavior_architecture_INTERPRETATION_FOUND` is false if a dependency
+of interpretation is missing. The BT nodes are not linked: their library is loaded by name
+(see [Asking from a tree](#asking-from-a-tree)). From Python, the interface is
+`from behavior_architecture.srv import Interpret`.
+
+### Asking from an orchestrator
+
+```cpp
+#include "behavior_architecture/interpretation/interpretation_client.hpp"
+
+using behavior_architecture::interpretation::InterpretationClient;
+
+// In the orchestrator (a member, created once): its own node, so the server of its namespace
+client_ = std::make_unique<InterpretationClient>(this);
+
+// Ask (returns at once)...
+handle_ = client_->choose_behavior("choose_behavior", offered, context_json, request_text);
+
+// ...and poll in control_cycle()
+if (handle_.ready()) {
+  auto choice = InterpretationClient::behavior_choice(handle_.result(), offered);
+  // choice.id: an offered id, or -1 with choice.reason
+}
+```
+
+`ask(question, context, text, images, budget_s)` asks any question; `handle.result()` has
+`success`, `answer`, `source`, `fallback_reason` and `message`, and `valid()` when there is an
+answer (of an interpreter or a fallback). A handle fails, without blocking, when the server does
+not appear or does not answer within the client's timeout (120 s by default).
+
+### Asking from a tree
+
+Add `libbehavior_architecture_interpretation_bt_nodes.so` to `plugin_libraries`. The nodes take
+the ROS node from the blackboard (`"node"`), as every BT node of the framework.
+
+```xml
+<Interpret question="identify_target" context="{target_context}" images="{frames}"
+           budget_s="2.0" answer="{target}" source="{target_source}"/>
+
+<!-- Asked without waiting, picked up later -->
+<Interpret question="identity_feature" context="{ctx}" images="{frames}" wait="false"/>
+<InterpretationResult question="identity_feature" answer="{feature}"/>
+```
+
+| Port | Default | Meaning |
+|---|---|---|
+| `question`, `variant`, `context`, `text`, `request_id` | | The request (`context` is a JSON object). |
+| `images` | | A blackboard entry of type `std::vector<sensor_msgs::msg::Image>`. |
+| `budget_s` | `0` | Time left for the answer (0: no budget). |
+| `wait` | `true` | RUNNING until the answer arrives; `false`: SUCCESS at once, the answer is kept under `result_key` (default `interpretation_pending_<question>`) for `InterpretationResult`. |
+| `service`, `timeout_s` | `interpretation/interpret`, `120` | The server and the longest wait for it. |
+| `fail_on_invalid` | `true` | FAILURE when no valid answer came back (source `invalid`). |
+| `answer`, `source`, `fallback_reason`, `message` (outputs) | `{interpretation_answer}`, ... | The result. |
+
 ## Executables and launch files
 
 | Executable | Layer | Purpose |
@@ -307,11 +498,13 @@ generation evaluation in [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md).
 | `simple_example`, `restaurant_example` | base | The two example orchestrators with their own `main` (the older form, which `mission_executor` replaces). |
 | `test_plan_executor` | base | Runs the BT XML files of a directory in order: `test_plan_executor <plan_directory>`. |
 | `static_tf_publisher` | base | Publishes the static transforms of a YAML file (`tf_file` parameter). |
+| `interpretation_server` | base | The interpretation server ([Interpretation](#interpretation-optional)). |
 | `llm_plan_executor`, `llm_bt_executor`, `start_mission` | LLM | See above. |
 
 | Launch file | Runs |
 |---|---|
-| `mission_executor.launch.py` | `mission_executor` with `config_file:=` (default `config/restaurant_config.yaml`) |
+| `mission_executor.launch.py` | `mission_executor` with `config_file:=` (default `config/restaurant_config.yaml`); with `interpretation:=true` (default `false`), also an interpretation server |
+| `interpretation.launch.py` | `interpretation_server` with `namespace:=` and `params_file:=` (default `config/interpretation/example_params.yaml`) |
 | `mission_executor_simple.launch.py`, `mission_executor_restaurant.launch.py` | the example configurations (need `examples.repos`) |
 | `simple_example.launch.py`, `restaurant_example.launch.py` | the example executables |
 | `test.launch.py` | `test_plan_executor` |
@@ -340,5 +533,6 @@ take the future of `async_send_request` with `.future.share()`, since Lyrical re
 | [behaviors/README.md](behaviors/README.md) | The catalogue of trees shipped with the package. |
 | [docs/USING_REUSABLE_BEHAVIORS.md](docs/USING_REUSABLE_BEHAVIORS.md) | Using those trees from another package. |
 | [docs/ADDING_REUSABLE_BEHAVIORS.md](docs/ADDING_REUSABLE_BEHAVIORS.md) | Adding a tree to the catalogue. |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The LLM orchestrators (need `llm.repos`). |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The LLM orchestrators (need `llm.repos`) and where interpretation fits. |
+| [docs/INTERPRETATION_DESIGN.md](docs/INTERPRETATION_DESIGN.md) | The design of interpretation: interface, questions, server, backends, client and BT nodes. |
 | [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md) | Evaluating LLM BT generation with `llm_bt_executor` (needs `llm.repos`). |

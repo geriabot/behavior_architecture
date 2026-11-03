@@ -6,6 +6,16 @@ repair its Behavior Trees with a language model. They are optional: they are bui
 [README](README.md#with-the-llm-orchestrators)). The base framework (BaseOrchestrator,
 BehaviorRunner, `mission_executor`) is described in the [README](README.md#how-it-works).
 
+## Where interpretation fits
+
+Interpretation ([README](README.md#interpretation-optional),
+[docs/INTERPRETATION_DESIGN.md](docs/INTERPRETATION_DESIGN.md)) is not a layer of the chain of
+control and not one of these orchestrators. It is a service beside the layers: an orchestrator
+(through `InterpretationClient`, which it owns) or a tree (through the `Interpret` node) asks it a
+narrow question and decides what to do with the answer. It keeps no state, commands nothing and is
+built with the base, independently of the LLM orchestrators described here; none of the classes
+below depends on it.
+
 ## Overview
 
 ### Core Classes
