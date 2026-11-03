@@ -10,7 +10,7 @@
     default_route: text
     routes:
       text:
-        backend: fake             # ollama | openai | gemini | llama_ros | fake | recorded
+        backend: fake             # ollama | openai | gemini | anthropic | llama_ros | fake | recorded
         model: ""
         answers: ['{"behavior_id": -1}']
         # e.g. for Ollama:

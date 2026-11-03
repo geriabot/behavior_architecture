@@ -26,6 +26,7 @@ class BackendError(RuntimeError):
     """The model could not answer (not reachable, an HTTP error, an empty answer)."""
 
     reason = 'model_down'
+    status = 0  # the HTTP status of an HTTP error (0: not an HTTP error)
 
 
 class BackendTimeout(BackendError):

@@ -36,7 +36,7 @@ This document is the user guide and reference. The design is described in
 | question | A named, declared question: its prompt template, the fields of its answer, how the answer is validated, its interpreters and its fallback. |
 | interpreter | What answers a question: `llm` (a model) or `rule` (code). A question names one interpreter or a chain of them, tried in order. |
 | route | A backend, a model and the backend's options. A question answered by `llm` names a route. |
-| backend | The client of a model API: `ollama`, `openai`, `gemini`, `llama_ros`, or `fake` and `recorded`, which need no model. |
+| backend | The client of a model API: `ollama`, `openai`, `gemini`, `anthropic`, `llama_ros`, or `fake` and `recorded`, which need no model. |
 | variant | A named set of changes to a question's definition (another template, another route...), chosen by the request or by the server's configuration. |
 | context | A JSON object sent with a request: the values that the template, the fields and the validation of the question use. |
 | source | Who gave the answer: the interpreter (`llm`, `rule`), `fallback`, or `invalid` when there is no answer. |
@@ -290,6 +290,7 @@ attempt). The other keys are options of the backend.
 | `ollama` | `url` (`http://localhost:11434`), `dialect` (`llm_router`), `temperature` (0), `num_ctx`, `keep_alive`, `think` (`false`), `stream` (`true` in `llm_manager`), `system_prompt`, `api_key_env` (only behind a proxy that needs a key) |
 | `openai` | `url` (`https://api.openai.com/v1`; any OpenAI-compatible API), `dialect` (`llm_router`), `api_key_env` (`OPENAI_API_KEY` when `url` is not set), `temperature` (0), `reasoning_effort` (`none`), `system_prompt` |
 | `gemini` | `url` (`https://generativelanguage.googleapis.com`), `dialect` (`llm_router`), `api_key_env` (`GEMINI_API_KEY`, then `GOOGLE_API_KEY`), `system_prompt` |
+| `anthropic` | `url` (`https://api.anthropic.com`), `dialect` (`llm_manager`, the only one), `api_key_env` (`ANTHROPIC_API_KEY`), `effort` (`low`; `""` sends none), `system_prompt` |
 | `llama_ros` | `action` (`/llama/generate_response`); needs llama_ros and its action server |
 | `fake` | `answers` (a list, used in order, the last one repeated), `by_question` (`{<question>: [answers]}`, used before `answers`), `delay_s` (0), `model_version` (`fake`). The answer `!timeout` simulates a timeout and `!down` an unreachable model. |
 | `recorded` | `log_files`: a call log file, a directory with `calls.jsonl`, or a list of them ([Call log and replay](#call-log-and-replay)) |
@@ -308,6 +309,15 @@ interpretation sends a model the same request as before:
 | Ollama | `stream` false; `format` with `additionalProperties: false`; `options.temperature`; `num_ctx` and `keep_alive` only when set; no token cap | optional system message; `stream` (default true); `keep_alive` (default -1); `think`; `options.num_predict` (`max_tokens`, plus 4096 when the model may think) and `num_ctx` (default 8192) |
 | OpenAI-compatible | text part followed by one `image_url` part per image; `temperature`; strict `response_format` named `answer` | optional system message; streamed with usage; `reasoning_effort`; `max_completion_tokens` (at least 4096 with reasoning); `response_format` named `response`, strict only when every property is required; the body of the openai SDK, byte for byte (keys `model`, `stream`, `messages`, then the others in alphabetical order) |
 | Gemini | `responseMimeType` JSON with the schema in Gemini's form; images as JPEG at quality 95 (needs OpenCV and numpy) | role `user`; optional `systemInstruction`; `maxOutputTokens`; thinking budget 0; images as PNG |
+
+The `anthropic` backend (Claude models, Messages API) has only the `llm_manager` dialect, the
+request of the interaction system's Claude provider: `max_tokens` (`max_tokens`, at least
+4096, since thinking counts toward it), one user message (with one PNG `image` block per image
+after the text), `system` (`system_prompt`), `output_config` with `effort` and, with a schema,
+`format` (`json_schema`, with `additionalProperties: false` on every object), and, for the
+models that support it, the server-side refusal fallback (`fallbacks: default` and its beta
+header). A schema that the API rejects (HTTP 400) is sent once more without `format`. The
+request is not streamed, and carries no prompt-caching markers.
 
 Images are sent in the order of the request, encoded once as lossless PNG without resizing
 (except as noted for Gemini). Supported encodings: `rgb8`, `bgr8`, `8UC3` (read as RGB),

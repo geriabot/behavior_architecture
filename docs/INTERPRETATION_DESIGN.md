@@ -319,6 +319,11 @@ What the implementation adds to, or changes from, sections 3 to 10:
   `llm_router` dialect is the request of attention's Gemini bridge, image included: converted to
   bgr8, not resized, JPEG at quality 95 by OpenCV, mime type image/jpeg.
   Its `llm_manager` dialect follows the google-genai SDK's request in content only.
+  A further backend, `anthropic` (Claude models, not in section 7), has only an `llm_manager`
+  dialect: the request of the gateway's Claude provider, in content (the anthropic SDK is not
+  in the environments, so its serialization was not compared), without streaming and without
+  the gateway's prompt-caching markers (`cache_prefix_len`), which the server has no way to
+  place.
 - **Text answers and the reading of an answer.** A question with `parse: text` receives the
   model's text unparsed, as `{"text": <text>}`, without a schema; an empty text is invalid
   unless the question has `allow_empty`. The answer stays a JSON object, so that the service,

@@ -14,6 +14,7 @@
 
 """The model backends of the llm interpreter, by type."""
 
+from behavior_interpretation.interpreters.llm.backends.anthropic import AnthropicBackend
 from behavior_interpretation.interpreters.llm.backends.base import Backend
 from behavior_interpretation.interpreters.llm.backends.base import BackendError
 from behavior_interpretation.interpreters.llm.backends.base import BackendTimeout
@@ -28,13 +29,13 @@ from behavior_interpretation.interpreters.llm.backends.recorded import RecordedB
 
 BACKENDS = {
     backend.kind: backend
-    for backend in (OllamaBackend, OpenAIBackend, GeminiBackend, LlamaRosBackend, FakeBackend,
-                    RecordedBackend)
+    for backend in (OllamaBackend, OpenAIBackend, GeminiBackend, AnthropicBackend,
+                    LlamaRosBackend, FakeBackend, RecordedBackend)
 }
 
 
 def create_backend(kind, options=None, node=None):
-    """Create a backend of this type (ollama, openai, gemini, llama_ros, fake or recorded)."""
+    """Create a backend of this type (ollama, openai, gemini, anthropic, llama_ros, fake...)."""
     if kind not in BACKENDS:
         raise ValueError(f'Unknown backend "{kind}" (one of {sorted(BACKENDS)})')
     return BACKENDS[kind](options, node)

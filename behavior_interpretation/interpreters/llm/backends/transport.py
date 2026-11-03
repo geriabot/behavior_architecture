@@ -62,7 +62,9 @@ def _open(url, body, headers, timeout):
         return urllib.request.urlopen(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
         text = exc.read().decode(errors='replace')[:500]
-        raise BackendError(f'{url} answered HTTP {exc.code}: {text}') from exc
+        error = BackendError(f'{url} answered HTTP {exc.code}: {text}')
+        error.status = exc.code
+        raise error from exc
     except (socket.timeout, TimeoutError) as exc:
         raise BackendTimeout(f'No answer from {url} in {timeout:.1f} s') from exc
     except urllib.error.URLError as exc:
