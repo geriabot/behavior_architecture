@@ -418,7 +418,8 @@ The nodes take the ROS node from the blackboard key `node` (an `rclcpp::Node::Sh
 |---|---|---|---|
 | `question` | in | | The question (required). |
 | `variant` | in | `""` | A variant of the question. |
-| `context` | in | `""` | A JSON object, as a string. |
+| `context` | in | `""` | A JSON object: written in the attribute, or read from the blackboard (`{key}`) as a string ([Passing a JSON context](#passing-a-json-context)). |
+| `context_keys` | in | `""` | Blackboard entries added to the context, comma-separated: `key` (under its name) or `name=key`. |
 | `text` | in | `""` | Free text. |
 | `images` | in | | A blackboard entry of type `std::vector<sensor_msgs::msg::Image>`. |
 | `budget_s` | in | `0` | Time left for the answer (0: no budget). |
@@ -462,15 +463,29 @@ It returns `FAILURE` when nothing was asked under the key.
 
 ### Passing a JSON context
 
-BehaviorTree.CPP reads a port value enclosed in braces as a blackboard reference, so a literal
-JSON object cannot be written in the `context` attribute. The context is placed on the
-blackboard by the orchestrator, by a BT node, or by a `Script` node, whose single-quoted string
-can hold JSON written with XML entities:
+The context is written in one of three ways, which can be combined:
 
 ```xml
-<Script code="slots_context := '{&quot;slots&quot;: [&quot;str:name&quot;, &quot;int:age&quot;]}'"/>
-<Interpret question="extract_slots" context="{slots_context}" text="{heard}" answer="{slots}"/>
+<!-- A JSON object in the attribute, enclosed in single quotes (the XML then needs no escaping) -->
+<Interpret question="extract_slots" context='{"slots": ["str:name", "int:age"]}' text="{heard}"/>
+
+<!-- A JSON object, as a string, from a blackboard entry -->
+<Interpret question="extract_slots" context="{slots_context}" text="{heard}"/>
+
+<!-- Blackboard entries added to the context by name: {"offered_ids": <ids>, "task": <task>} -->
+<Interpret question="choose_behavior" context_keys="offered_ids=ids, task" text="{heard}"/>
 ```
+
+BehaviorTree.CPP reads a port value enclosed in braces as the name of a blackboard entry; a
+`context` that is a JSON object is therefore recognized and taken as written, and any other
+`{key}` is read from the blackboard. A double-quoted attribute also works with the quotes written
+as `&quot;`.
+
+`context_keys` adds each entry to the context (`context`, or `{}` without it), replacing a member
+of the same name: a string that holds a JSON object or array is added as JSON, any other string as
+a string, and numbers, booleans, vectors of them and vectors of strings as JSON. A missing entry,
+an entry of another type, or a `context` that is not a JSON object makes the node fail before it
+asks, with the reason in `message`.
 
 ## Linking
 
@@ -558,8 +573,7 @@ cat > extract.xml <<'EOF'
 <root BTCPP_format="4">
   <BehaviorTree ID="ExtractSlots">
     <Sequence>
-      <Script code="slots_context := '{&quot;slots&quot;: [&quot;str:name&quot;, &quot;int:age&quot;]}'"/>
-      <Interpret question="extract_slots" context="{slots_context}"
+      <Interpret question="extract_slots" context='{"slots": ["str:name", "int:age"]}'
                  text="My name is Ana and I am 34." answer="{slots}" source="{slots_source}"/>
     </Sequence>
   </BehaviorTree>
@@ -571,9 +585,9 @@ cat > choose.xml <<'EOF'
 <root BTCPP_format="4">
   <BehaviorTree ID="ChooseBehavior">
     <Sequence>
-      <Script code="choose_context := '{&quot;offered_ids&quot;: [1, 2], &quot;offered_behaviors&quot;: [{&quot;id&quot;: 1, &quot;name&quot;: &quot;greet&quot;}, {&quot;id&quot;: 2, &quot;name&quot;: &quot;follow&quot;}]}'"/>
-      <Interpret question="choose_behavior" context="{choose_context}" text="Come with me"
-                 wait="false"/>
+      <Interpret question="choose_behavior"
+                 context='{"offered_ids": [1, 2], "offered_behaviors": [{"id": 1, "name": "greet"}, {"id": 2, "name": "follow"}]}'
+                 text="Come with me" wait="false"/>
       <Sleep msec="200"/>
       <InterpretationResult question="choose_behavior" answer="{choice}"/>
     </Sequence>

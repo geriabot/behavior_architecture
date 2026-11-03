@@ -461,6 +461,12 @@ progress on the blackboard, where `InterpretationResult` picks the answer up lat
 questions whose answer is needed only by a later node. The default output keys are prefixed
 `interpretation_`.
 
+The context of a question is a JSON object. BehaviorTree.CPP reads a port value enclosed in
+braces as the name of a blackboard entry, so `Interpret` takes a `context` that is a JSON object
+as written in the XML, and reads any other `{key}` from the blackboard; `context_keys` adds
+blackboard entries to the context by name, so that a tree composes its context from the values
+that other nodes wrote, without building JSON.
+
 ### Logging and replay
 
 Every call is written as one JSON line: the question, the request, the prompt, the schema, the

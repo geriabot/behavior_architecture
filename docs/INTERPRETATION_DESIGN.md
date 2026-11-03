@@ -330,7 +330,10 @@ What the implementation adds to, or changes from, sections 3 to 10:
   `images` is a blackboard entry of type `std::vector<sensor_msgs::msg::Image>`. With `wait`
   false, the blackboard entry (`interpretation_pending_<question>` or `result_key`) holds the
   question in progress, which receives the answer when it arrives; `InterpretationResult` reads
-  it (and sends the request then if the server was not up when it was asked).
+  it (and sends the request then if the server was not up when it was asked). Since
+  BehaviorTree.CPP reads a port value enclosed in braces as a blackboard entry, a `context` that
+  is a JSON object is taken as written in the XML, and a port `context_keys` adds blackboard
+  entries to the context by name (`key` or `name=key`), so that a tree does not build JSON.
 - **Paths.** The server's file parameters accept `package://<package>/<path>`.
 - **Not implemented here.** The importers from each system's current recordings (section 6)
   belong to each system.

@@ -647,8 +647,14 @@ the ROS node stored on the blackboard under `node`.
 <InterpretationResult question="choose_behavior" answer="{choice}"/>
 ```
 
-`context` is a JSON string read from the blackboard. A literal JSON object cannot be written in
-the attribute: BehaviorTree.CPP reads a value enclosed in braces as a blackboard reference.
+`context` is a JSON object, written in the attribute or read from the blackboard (`{key}`), and
+`context_keys` adds blackboard entries to it by name. Written in the attribute, the object is
+enclosed in single quotes, so that its double quotes need no escaping:
+
+```xml
+<Interpret question="extract_slots" context='{"slots": ["str:name", "int:age"]}'
+           context_keys="heard_before, offered_ids=ids" text="{heard}" answer="{slots}"/>
+```
 
 ### Linking interpretation
 
@@ -730,7 +736,7 @@ colcon test-result --verbose
 | `test_test_plan_executor` (pytest) | `test_plan_executor` runs the trees of a directory in order, and stops at one that fails or cannot be built. |
 | `test_interpretation_server` (pytest) | The server with the `fake` and `recorded` backends: questions, fields, validation, chains, budgets, fallbacks, images, backend requests, the call log and its replay; the process ends with code 0 on Ctrl-C. No model is contacted. |
 | `test_interpretation_client` (gtest) | `InterpretationClient` against a fake server node: non-blocking calls, namespaces, timeouts, cancellation, `choose_behavior`. |
-| `test_interpretation_bt_nodes` (gtest) | `Interpret` and `InterpretationResult`, loaded as a plugin. |
+| `test_interpretation_bt_nodes` (gtest) | `Interpret` and `InterpretationResult`, loaded as a plugin, with a context written in the XML or taken from blackboard entries. |
 
 Without `-R`, `colcon test` also runs the linters of `ament_lint_auto`. When
 ament_cmake_ros is available, the tests that create ROS nodes run isolated from the other ROS

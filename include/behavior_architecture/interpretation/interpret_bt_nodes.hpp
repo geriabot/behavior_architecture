@@ -29,6 +29,24 @@ namespace behavior_architecture
 namespace interpretation
 {
 
+/// Whether a port's value, as written in the XML, is a JSON object (taken literally)
+bool is_json_object_literal(const std::string & value);
+
+/**
+ * @brief The context of a request: `context` (a JSON object, or "") with the blackboard entries
+ * named in `context_keys` added to it
+ *
+ * `context_keys` is a comma-separated list of `key` (the entry `key`, under its name) or
+ * `name=key` (the entry `key`, under `name`). A string entry that holds a JSON object or array
+ * is added as JSON, any other string as a string; numbers, booleans, vectors of them and
+ * vectors of strings as JSON. With no keys, `context` is returned unchanged.
+ * @throw std::runtime_error if `context` is not a JSON object, or an entry is missing or of
+ * a type that cannot be written as JSON
+ */
+std::string build_context(
+  const std::string & context, const std::string & context_keys,
+  const BT::Blackboard & blackboard);
+
 /// The blackboard key where Interpret (wait=false) leaves its question for InterpretationResult
 std::string pending_key(const std::string & question, const std::string & key);
 
@@ -39,6 +57,9 @@ BT::NodeStatus write_result(
 
 /**
  * @brief Asks the interpretation server a question (BT node ID "Interpret").
+ *
+ * The context is the port `context`, a JSON object written in the attribute or read from the
+ * blackboard, with the entries named in `context_keys` added to it (build_context()).
  *
  * The ROS node is the blackboard's "node" (as for every BT node of the framework). With
  * wait=true the node is RUNNING until the answer arrives, without blocking the tree: SUCCESS
@@ -58,7 +79,10 @@ public:
     return {
       BT::InputPort<std::string>("question", "The question (as registered in the server)"),
       BT::InputPort<std::string>("variant", "", "A variant of the question (\"\": the server's)"),
-      BT::InputPort<std::string>("context", "", "A JSON object with what the question needs"),
+      BT::InputPort<std::string>(
+        "context", "", "A JSON object with what the question needs (literal or {entry})"),
+      BT::InputPort<std::string>(
+        "context_keys", "", "Blackboard entries added to the context: key or name=key, ..."),
       BT::InputPort<std::string>("text", "", "Free text (a user's line, a task)"),
       BT::InputPort<std::vector<sensor_msgs::msg::Image>>(
         "images", "Zero or more images (a blackboard entry)"),

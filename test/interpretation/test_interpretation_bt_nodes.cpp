@@ -171,6 +171,88 @@ TEST_F(InterpretBTNodesTest, HaltCancels)
     BT::NodeStatus::FAILURE);
 }
 
+TEST_F(InterpretBTNodesTest, LiteralJsonContext)
+{
+  // A JSON object written in the attribute (single-quoted in the XML), not a blackboard entry
+  EXPECT_EQ(
+    run(
+      tree(
+        "<Interpret question=\"echo\" context='{\"slots\": [\"str:name\", \"int:age\"]}' "
+        "answer=\"{answer}\"/>")),
+    BT::NodeStatus::SUCCESS);
+  auto answer = nlohmann::json::parse(blackboard_->get<std::string>("answer"));
+  EXPECT_EQ(answer["context"], "{\"slots\": [\"str:name\", \"int:age\"]}");
+
+  // The same with entities in a double-quoted attribute, nested objects included
+  EXPECT_EQ(
+    run(
+      tree(
+        "<Interpret question=\"echo\" "
+        "context=\"{&quot;a&quot;: {&quot;b&quot;: 1}}\" answer=\"{answer}\"/>")),
+    BT::NodeStatus::SUCCESS);
+  answer = nlohmann::json::parse(blackboard_->get<std::string>("answer"));
+  EXPECT_EQ(
+    nlohmann::json::parse(answer["context"].get<std::string>()),
+    nlohmann::json::parse("{\"a\": {\"b\": 1}}"));
+
+  // A blackboard reference is still read from the blackboard
+  blackboard_->set("ctx", std::string("{\"from\": \"blackboard\"}"));
+  EXPECT_EQ(
+    run(tree("<Interpret question=\"echo\" context=\"{ctx}\" answer=\"{answer}\"/>")),
+    BT::NodeStatus::SUCCESS);
+  answer = nlohmann::json::parse(blackboard_->get<std::string>("answer"));
+  EXPECT_EQ(answer["context"], "{\"from\": \"blackboard\"}");
+}
+
+TEST_F(InterpretBTNodesTest, ContextFromBlackboardEntries)
+{
+  blackboard_->set("heard", std::string("a cup of tea"));
+  blackboard_->set("ids", std::vector<int>{1, 2});
+  blackboard_->set("slots", std::string("[\"str:name\"]"));
+  blackboard_->set("count", 3);
+  blackboard_->set("ratio", 0.5);
+  blackboard_->set("flag", true);
+  EXPECT_EQ(
+    run(
+      tree(
+        "<Sequence><Script code=\"from_script := 7\"/>"
+        "<Interpret question=\"echo\" context='{\"task\": \"serve\", \"count\": 0}' "
+        "context_keys=\"heard, offered_ids=ids, slots, count, ratio, flag, from_script\" "
+        "answer=\"{answer}\"/></Sequence>")),
+    BT::NodeStatus::SUCCESS);
+  const auto answer = nlohmann::json::parse(blackboard_->get<std::string>("answer"));
+  const auto context = nlohmann::json::parse(answer["context"].get<std::string>());
+  EXPECT_EQ(context["task"], "serve");
+  EXPECT_EQ(context["heard"], "a cup of tea");
+  EXPECT_EQ(context["offered_ids"], nlohmann::json::parse("[1, 2]"));
+  EXPECT_EQ(context["slots"], nlohmann::json::parse("[\"str:name\"]"));
+  EXPECT_EQ(context["count"], 3);  // the entry replaces the member of the same name
+  EXPECT_DOUBLE_EQ(context["ratio"].get<double>(), 0.5);
+  EXPECT_EQ(context["flag"], true);
+  EXPECT_EQ(context["from_script"].get<double>(), 7.0);
+  EXPECT_FALSE(context.contains("ids"));
+
+  // Without a context, the entries alone; a missing entry or a context that is not an object
+  // fails before asking
+  EXPECT_EQ(
+    run(tree("<Interpret question=\"echo\" context_keys=\"heard\" answer=\"{answer}\"/>")),
+    BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(
+    nlohmann::json::parse(
+      nlohmann::json::parse(blackboard_->get<std::string>("answer"))["context"].get<std::string>()),
+    nlohmann::json::parse("{\"heard\": \"a cup of tea\"}"));
+  EXPECT_EQ(
+    run(tree("<Interpret question=\"echo\" context_keys=\"nothing_here\"/>")),
+    BT::NodeStatus::FAILURE);
+  EXPECT_NE(
+    blackboard_->get<std::string>("interpretation_message").find("nothing_here"),
+    std::string::npos);
+  blackboard_->set("not_object", std::string("[1]"));
+  EXPECT_EQ(
+    run(tree("<Interpret question=\"echo\" context=\"{not_object}\" context_keys=\"heard\"/>")),
+    BT::NodeStatus::FAILURE);
+}
+
 int main(int argc, char ** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
