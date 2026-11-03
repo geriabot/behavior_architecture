@@ -17,6 +17,7 @@
 
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -24,6 +25,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
+#include "behavior_architecture/srv/cancel_interpretation.hpp"
 #include "behavior_architecture/srv/interpret.hpp"
 
 namespace behavior_architecture
@@ -89,6 +91,42 @@ private:
   std::shared_ptr<State> state_;
 };
 
+/**
+ * @brief The cancellation of the server's calls in progress of a request, polled without
+ * blocking (InterpretationClient::cancel).
+ *
+ * poll() sends the request as soon as the cancel service is available (within the client's
+ * timeout) and checks for the response; it never waits. A handle that is not polled is sent
+ * only if the service was available when it was created: poll it until ready() to be sure.
+ * The cancelled calls answer their askers with source "invalid" and fallback_reason
+ * "cancelled".
+ */
+class CancellationHandle
+{
+public:
+  using Status = InterpretationHandle::Status;
+
+  CancellationHandle() = default;
+
+  /// PENDING until the response arrives (DONE) or the timeout passes (FAILED)
+  Status poll();
+  /// poll() != PENDING
+  bool ready() {return poll() != Status::PENDING;}
+  /// How many calls in progress the server cancelled (once DONE; 0 otherwise)
+  int cancelled() const;
+  /// The server's message, or why the cancellation failed
+  std::string message() const;
+  /// A handle of a cancellation (not default-constructed)
+  bool valid() const {return static_cast<bool>(state_);}
+
+private:
+  friend class InterpretationClient;
+  struct State;
+  explicit CancellationHandle(std::shared_ptr<State> state)
+  : state_(std::move(state)) {}
+  std::shared_ptr<State> state_;
+};
+
 /// A behavior offered to choose_behavior
 struct OfferedBehavior
 {
@@ -115,6 +153,7 @@ class InterpretationClient
 {
 public:
   using Interpret = behavior_architecture::srv::Interpret;
+  using CancelInterpretation = behavior_architecture::srv::CancelInterpretation;
   static constexpr const char * DEFAULT_SERVICE = "interpretation/interpret";
   /// Context keys written by choose_behavior
   static constexpr const char * OFFERED_KEY = "offered_behaviors";
@@ -171,11 +210,31 @@ public:
   static std::string offered_context(
     const std::vector<OfferedBehavior> & offered, const std::string & context);
 
+  /**
+   * @brief Cancel the server's calls in progress that were asked with this request_id (for
+   * example when the dialogue that asked them has ended).
+   *
+   * Each of them answers at once with source "invalid" and fallback_reason "cancelled"; later
+   * questions are not affected. Returns at once; the request is sent when the cancel service is
+   * available (now, or when the handle is polled). The cancel service is `cancel` next to the
+   * interpret service (cancel_service_for()), and its client is created at the first call.
+   */
+  CancellationHandle cancel(const std::string & request_id);
+
+  /// The cancel service next to an interpret service: "interpretation/cancel" by default
+  static std::string cancel_service_for(const std::string & service_name);
+
   bool service_is_ready() const;
   std::string service_name() const;
 
 private:
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+  rclcpp::node_interfaces::NodeGraphInterface::SharedPtr node_graph_;
+  rclcpp::node_interfaces::NodeServicesInterface::SharedPtr node_services_;
+  std::string service_name_arg_;
   rclcpp::Client<Interpret>::SharedPtr client_;
+  std::mutex cancel_mutex_;
+  rclcpp::Client<CancelInterpretation>::SharedPtr cancel_client_;
   rclcpp::Logger logger_;
   std::chrono::milliseconds timeout_;
 };

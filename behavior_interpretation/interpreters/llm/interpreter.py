@@ -24,6 +24,8 @@ A failed or invalid answer is retried up to the question's max_retries (0 = no r
 attempt is limited by the route's timeout_s and by what is left of the request's budget
 (budget_s 0 cuts nothing); when the budget is spent the call fails with the reason `budget`.
 The token cap is the request's max_tokens, or the question's when the request gives none (0).
+A call with a request_id that is cancelled while it waits for the model fails at once with
+the reason `cancelled`, and is not retried.
 
 A route names a backend, a model and the backend's options:
 
@@ -35,9 +37,11 @@ import math
 import time
 
 from behavior_interpretation.fields import build_schema
+from behavior_interpretation.interpreters.base import Cancelled
 from behavior_interpretation.interpreters.base import check_answer
 from behavior_interpretation.interpreters.base import Interpreter
 from behavior_interpretation.interpreters.base import Outcome
+from behavior_interpretation.interpreters.base import run_cancellable
 from behavior_interpretation.interpreters.llm.backends import BackendError
 from behavior_interpretation.interpreters.llm.backends import BackendTimeout
 from behavior_interpretation.interpreters.llm.backends import create_backend
@@ -114,6 +118,8 @@ class LLMInterpreter(Interpreter):
         reason = ''
         message = ''
         for number in range(retries + 1):
+            if call.cancelled.is_set():
+                return Outcome.failed('cancelled', f'cancelled before attempt {number + 1}')
             remaining = call.remaining()
             if remaining <= 0.0:
                 reason = 'budget'
@@ -127,8 +133,12 @@ class LLMInterpreter(Interpreter):
             attempts.append(attempt)
             start = time.monotonic()
             try:
-                result = route.backend.generate(route.model, prompt, schema, call.images,
-                                                limits, question=question.name)
+                result = run_cancellable(call, route.backend.generate, route.model, prompt,
+                                         schema, call.images, limits, question=question.name)
+            except Cancelled:
+                attempt['error'] = 'cancelled'
+                attempt['latency_s'] = round(time.monotonic() - start, 4)
+                return Outcome.failed('cancelled', f'cancelled during attempt {number + 1}')
             except BackendTimeout as exc:
                 attempt['error'] = 'timeout'
                 attempt['latency_s'] = round(time.monotonic() - start, 4)

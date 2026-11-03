@@ -40,7 +40,7 @@ This document is the user guide and reference. The design is described in
 | variant | A named set of changes to a question's definition (another template, another route...), chosen by the request or by the server's configuration. |
 | context | A JSON object sent with a request: the values that the template, the fields and the validation of the question use. |
 | source | Who gave the answer: the interpreter (`llm`, `rule`), `fallback`, or `invalid` when there is no answer. |
-| fallback reason | Why there is no answer from an interpreter: `timeout`, `invalid`, `model_down`, `budget` or `declined`. |
+| fallback reason | Why there is no answer from an interpreter: `timeout`, `invalid`, `model_down`, `budget`, `declined` or `cancelled`. |
 
 ## Running a server
 
@@ -126,6 +126,7 @@ the process exits with code 0.
 | `log_dir` | `""` | Directory of the call log; `""` writes no log. |
 | `log_file` | `calls.jsonl` | File name of the call log in `log_dir`. |
 | `service_name` | `interpretation/interpret` | Name of the service, relative to the node's namespace. |
+| `cancel_service_name` | `""` | Name of the cancel service ([Cancelling calls](#cancelling-calls)); `""`: `cancel` next to `service_name` (`interpretation/cancel`). |
 
 A file parameter accepts `package://<package>/<path>`, resolved in the share directory of the
 package. A path starting with `~` is expanded for `log_dir` and for module files.
@@ -394,7 +395,7 @@ class ExtractSlots(Question):
 | `success` | `bool` | `false` only when the request cannot be taken: an unknown question or variant, a context that is not a JSON object, missing or excess images, missing `fields_from` or `choices_from` keys. |
 | `answer` | `string` | A JSON object valid for the question, from an interpreter or the fallback; `""` when the source is `invalid`. |
 | `source` | `string` | The interpreter that answered, `fallback` or `invalid`. |
-| `fallback_reason` | `string` | `timeout`, `invalid`, `model_down`, `budget`, `declined`, or `""` when an interpreter answered. |
+| `fallback_reason` | `string` | `timeout`, `invalid`, `model_down`, `budget`, `declined`, `cancelled` ([Cancelling calls](#cancelling-calls)), or `""` when an interpreter answered. |
 | `message` | `string` | A readable explanation (the route and attempt, errors, why the request was rejected). |
 
 With the example server running, the service can be called from the command line:
@@ -408,6 +409,31 @@ ros2 service call /interpretation/interpret behavior_architecture/srv/Interpret 
   "{question: extract_slots, context: '{\"slots\": [\"str:name\"]}', text: 'I am Ana'}"
 # success=True, answer='', source='invalid', fallback_reason='invalid'
 #   (the scripted answer has no field "name", and the question has no fallback)
+```
+
+### Cancelling calls
+
+A second service, `interpretation/cancel` (`behavior_architecture/srv/CancelInterpretation`),
+cancels the calls in progress that were asked with a `request_id`, for example when the
+dialogue that asked them has ended:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `request_id` (request) | `string` | The `request_id` of the calls to cancel. |
+| `success` | `bool` | `false` only when `request_id` is empty. |
+| `cancelled` | `int32` | How many calls in progress were cancelled (0: none was). |
+| `message` | `string` | A readable explanation. |
+
+Each cancelled call returns at once with `success` true, source `invalid` and fallback reason
+`cancelled`, whatever its fallback, and is not retried; its model's answer, if it comes, is
+dropped. Only the calls in progress are cancelled: a later call with the same `request_id` is
+answered as usual. A call without a `request_id` cannot be cancelled. Nothing changes for a
+system that never calls the service.
+
+```bash
+ros2 service call /interpretation/cancel behavior_architecture/srv/CancelInterpretation \
+  "{request_id: dialogue-7}"
+# success=True, cancelled=1, message='1 calls in progress cancelled'
 ```
 
 ## Asking from an orchestrator
@@ -450,6 +476,8 @@ if (slots_.ready()) {
 | `choose_behavior(question, offered, context = "", text = "", budget_s = 0, variant = "")` | Ask the system's question that chooses a behavior. Adds `offered_behaviors` (`[{id, name, description}]`) and `offered_ids` (`[id]`) to the context. Throws `std::invalid_argument` if the context is not a JSON object. |
 | `behavior_choice(result, offered, answer_field = "")` (static) | The chosen id, or `-1` with the reason: no response, no valid answer, none fits (`-1`), or an id that was not offered. `answer_field`: the field with the id (`""`: the only field). |
 | `offered_context(offered, context)` (static) | The context with the offered behaviors added. |
+| `cancel(request_id)` | Cancel the server's calls in progress with this `request_id` ([Cancelling calls](#cancelling-calls)); returns a `CancellationHandle` at once. The client of the cancel service is created at the first call. |
+| `cancel_service_for(service_name)` (static) | The cancel service next to an interpret service: `interpretation/cancel` for the default. |
 | `service_is_ready()`, `service_name()` | The state and the resolved name of the service. |
 
 | `InterpretationHandle` | Description |
@@ -459,6 +487,19 @@ if (slots_.ready()) {
 | `result()` | An `InterpretationResult`: `success`, `answer`, `source`, `fallback_reason`, `message`, and `valid()` (a response with an answer from an interpreter or a fallback). After `FAILED`, `success` is false and `message` says why. |
 | `cancel()` | Forget the question; its response, if any, is ignored. |
 | `valid()` | The handle belongs to a question (it is not default-constructed). |
+
+| `CancellationHandle` | Description |
+|---|---|
+| `poll()`, `ready()` | As for `InterpretationHandle`. The request is sent once the cancel service is available: poll the handle until `ready()` to make sure that it is sent. |
+| `cancelled()` | How many calls the server cancelled (after `DONE`). |
+| `message()` | The server's message, or why the cancellation failed. |
+
+```cpp
+// When a dialogue ends: its questions still in progress return at once (source "invalid",
+// fallback_reason "cancelled")
+cancelling_ = client_->cancel(dialogue_id);
+// ...and, in the following cycles, until cancelling_.ready()
+```
 
 A handle fails, without blocking, when the service does not appear, or does not answer, before
 the client's timeout.

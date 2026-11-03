@@ -146,3 +146,48 @@ def test_templates_files_parameter(tmp_path):
     finally:
         node.destroy_node()
         rclpy.try_shutdown()
+
+
+def test_cancel_service(tmp_path):
+    questions = tmp_path / 'questions.yaml'
+    questions.write_text('questions:\n  q: {prompt: p, fields: ["int:id"], fallback: -1}\n')
+    node = _server_node({
+        'questions_file': str(questions),
+        'routes.a.backend': 'fake', 'routes.a.answers': ['{"id": 1}'],
+        'routes.a.delay_s': 10.0})
+    client_node = rclpy.create_node('interpretation_cancel_client', namespace='/test_options')
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+    executor.add_node(client_node)
+    thread = threading.Thread(target=executor.spin, daemon=True)
+    thread.start()
+    try:
+        interpret = client_node.create_client(srv.Interpret, 'interpretation/interpret')
+        cancel = client_node.create_client(srv.CancelInterpretation, 'interpretation/cancel')
+        assert cancel.service_name == '/test_options/interpretation/cancel'
+        assert interpret.wait_for_service(timeout_sec=10.0)
+        assert cancel.wait_for_service(timeout_sec=10.0)
+        pending = interpret.call_async(srv.Interpret.Request(question='q', request_id='d1'))
+        deadline = time.monotonic() + 5.0
+        while not node.server.routes['a'].backend.calls:
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        start = time.monotonic()
+        response = call(cancel, srv.CancelInterpretation.Request(request_id='d1'))
+        assert (response.success, response.cancelled) == (True, 1)
+        deadline = time.monotonic() + 2.0
+        while not pending.done():
+            assert time.monotonic() < deadline, 'the cancelled call did not return'
+            time.sleep(0.01)
+        assert time.monotonic() - start < 2.0
+        result = pending.result()
+        assert (result.success, result.source, result.fallback_reason, result.answer) == (
+            True, 'invalid', 'cancelled', '')
+        response = call(cancel, srv.CancelInterpretation.Request(request_id=''))
+        assert not response.success
+    finally:
+        executor.shutdown()
+        node.destroy_node()
+        client_node.destroy_node()
+        rclpy.try_shutdown()
+        thread.join(timeout=5)

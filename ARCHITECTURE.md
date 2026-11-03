@@ -352,7 +352,7 @@ questions with logic of their own, a Python module that the server loads) and as
 
 | Component | Language | Location |
 |---|---|---|
-| `Interpret.srv` | ROS 2 interface | `srv/` |
+| `Interpret.srv`, `CancelInterpretation.srv` | ROS 2 interfaces | `srv/` |
 | `interpretation_server` | Python | `behavior_interpretation/node.py` (ROS wrapper) and `server.py` (no ROS dependency) |
 | Questions, fields, templates, validation | Python | `behavior_interpretation/questions.py`, `fields.py`, `templates.py`, `validation.py` |
 | Interpreters | Python | `behavior_interpretation/interpreters/` (`rule.py`, `llm/`) |

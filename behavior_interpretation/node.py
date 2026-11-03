@@ -16,7 +16,10 @@
 The ROS node `interpretation_server`: the service Interpret, answered by the server.
 
 Service (behavior_architecture/srv/Interpret): `interpretation/interpret`, relative, so that
-each system's server lives in the system's namespace (parameter service_name).
+each system's server lives in the system's namespace (parameter service_name). A second
+service, `interpretation/cancel` (behavior_architecture/srv/CancelInterpretation; parameter
+cancel_service_name, by default `cancel` next to service_name), cancels the calls in progress
+of a request_id.
 
 Parameters (each system launches its own server, configured only here):
   questions_file, templates_file   YAML files (server.py, templates.py)
@@ -29,17 +32,20 @@ Parameters (each system launches its own server, configured only here):
   interpreter_overrides.<question> its chain of interpreters, e.g. "rule:most_centered,llm"
   route_overrides.<question>       its route, e.g. "cloud" (replacing the questions file's)
   log_dir, log_file                the call log ('' = no log; default file calls.jsonl)
+  service_name, cancel_service_name  the services ('' cancel: `cancel` next to service_name)
 
 Calls are answered concurrently (the server keeps no state between them).
 """
 
 import os
+import posixpath
 import signal
 import sys
 import threading
 import traceback
 
 from ament_index_python.packages import get_package_share_directory
+from behavior_architecture.srv import CancelInterpretation
 from behavior_architecture.srv import Interpret
 from behavior_interpretation.call_log import LOG_FILE
 from behavior_interpretation.server import InterpretationServer
@@ -58,7 +64,13 @@ PARAMETERS = {
     'log_dir': '',
     'log_file': LOG_FILE,
     'service_name': 'interpretation/interpret',
+    'cancel_service_name': '',
 }
+
+
+def cancel_service_for(service_name):
+    """Return the cancel service next to an interpret service (interpretation/cancel)."""
+    return posixpath.join(posixpath.dirname(service_name), 'cancel')
 
 
 def resolve_path(path):
@@ -112,9 +124,13 @@ class InterpretationServerNode(Node):
             log_file=value('log_file').value or LOG_FILE,
             node=self)
 
+        group = ReentrantCallbackGroup()
         self.service = self.create_service(
-            Interpret, value('service_name').value, self.on_interpret,
-            callback_group=ReentrantCallbackGroup())
+            Interpret, value('service_name').value, self.on_interpret, callback_group=group)
+        self.cancel_service = self.create_service(
+            CancelInterpretation,
+            value('cancel_service_name').value or cancel_service_for(value('service_name').value),
+            self.on_cancel, callback_group=group)
         for route in self.server.routes.values():
             self.get_logger().info(f'route {route.describe()}')
         for name in sorted(self.server.definitions):
@@ -124,6 +140,17 @@ class InterpretationServerNode(Node):
         if self.server.log.enabled:
             self.get_logger().info(f'call log: {self.server.log.path}')
         self.get_logger().info(f'Interpretation server ready on {self.service.srv_name}')
+
+    def on_cancel(self, request, response):
+        if not request.request_id:
+            response.success = False
+            response.message = 'request_id is empty'
+            return response
+        response.cancelled = self.server.cancel(request.request_id)
+        response.success = True
+        response.message = f'{response.cancelled} calls in progress cancelled'
+        self.get_logger().info(f'cancel {request.request_id}: {response.message}')
+        return response
 
     def on_interpret(self, request, response):
         try:

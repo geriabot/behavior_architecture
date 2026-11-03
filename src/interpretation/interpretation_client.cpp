@@ -131,13 +131,105 @@ InterpretationHandle::cancel()
   state_->result.message = "cancelled";
 }
 
+struct CancellationHandle::State
+{
+  std::mutex mutex;
+  rclcpp::Client<InterpretationClient::CancelInterpretation>::SharedPtr client;
+  rclcpp::Logger logger {rclcpp::get_logger("interpretation_client")};
+  std::shared_ptr<InterpretationClient::CancelInterpretation::Request> request;
+  std::shared_future<InterpretationClient::CancelInterpretation::Response::SharedPtr> future;
+  int64_t request_id {0};
+  bool sent {false};
+  std::chrono::steady_clock::time_point deadline;
+  std::chrono::milliseconds timeout {0};
+  Status status {Status::PENDING};
+  int cancelled {0};
+  std::string message;
+
+  void fail(const std::string & reason)
+  {
+    status = Status::FAILED;
+    cancelled = 0;
+    message = reason;
+    RCLCPP_WARN(logger, "cancel %s: %s", request->request_id.c_str(), reason.c_str());
+  }
+};
+
+CancellationHandle::Status
+CancellationHandle::poll()
+{
+  if (!state_) {
+    return Status::FAILED;
+  }
+  std::lock_guard<std::mutex> lock(state_->mutex);
+  auto & s = *state_;
+  if (s.status != Status::PENDING) {
+    return s.status;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  if (!s.sent) {
+    if (!s.client->service_is_ready()) {
+      if (now > s.deadline) {
+        s.fail(
+          "the service " + std::string(s.client->get_service_name()) +
+          " is not available");
+      }
+      return s.status;
+    }
+    auto sent = s.client->async_send_request(s.request);
+    s.request_id = sent.request_id;
+    s.future = sent.future.share();
+    s.sent = true;
+  }
+  if (s.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+    auto response = s.future.get();
+    s.future = {};
+    if (!response->success) {
+      s.fail(response->message);
+      return s.status;
+    }
+    s.cancelled = response->cancelled;
+    s.message = response->message;
+    s.status = Status::DONE;
+    return s.status;
+  }
+  if (now > s.deadline) {
+    s.client->remove_pending_request(s.request_id);
+    s.future = {};
+    s.fail("no response within " + std::to_string(s.timeout.count()) + " ms");
+  }
+  return s.status;
+}
+
+int
+CancellationHandle::cancelled() const
+{
+  if (!state_) {
+    return 0;
+  }
+  std::lock_guard<std::mutex> lock(state_->mutex);
+  return state_->cancelled;
+}
+
+std::string
+CancellationHandle::message() const
+{
+  if (!state_) {
+    return "no cancellation was asked";
+  }
+  std::lock_guard<std::mutex> lock(state_->mutex);
+  return state_->message;
+}
+
 InterpretationClient::InterpretationClient(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
   rclcpp::node_interfaces::NodeGraphInterface::SharedPtr node_graph,
   rclcpp::node_interfaces::NodeServicesInterface::SharedPtr node_services,
   rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr node_logging,
   const std::string & service_name, std::chrono::milliseconds timeout)
-: logger_(node_logging->get_logger().get_child("interpretation")),
+: node_base_(node_base), node_graph_(node_graph), node_services_(node_services),
+  service_name_arg_(service_name),
+  logger_(node_logging->get_logger().get_child("interpretation")),
   timeout_(timeout)
 {
   client_ = rclcpp::create_client<Interpret>(
@@ -275,6 +367,41 @@ InterpretationClient::behavior_choice(
   }
   choice.id = id;
   return choice;
+}
+
+std::string
+InterpretationClient::cancel_service_for(const std::string & service_name)
+{
+  const auto slash = service_name.rfind('/');
+  if (slash == std::string::npos) {
+    return "cancel";
+  }
+  return service_name.substr(0, slash + 1) + "cancel";
+}
+
+CancellationHandle
+InterpretationClient::cancel(const std::string & request_id)
+{
+  rclcpp::Client<CancelInterpretation>::SharedPtr client;
+  {
+    std::lock_guard<std::mutex> lock(cancel_mutex_);
+    if (!cancel_client_) {
+      cancel_client_ = rclcpp::create_client<CancelInterpretation>(
+        node_base_, node_graph_, node_services_, cancel_service_for(service_name_arg_),
+        rclcpp::ServicesQoS(), nullptr);
+    }
+    client = cancel_client_;
+  }
+  auto state = std::make_shared<CancellationHandle::State>();
+  state->client = client;
+  state->logger = logger_;
+  state->request = std::make_shared<CancelInterpretation::Request>();
+  state->request->request_id = request_id;
+  state->timeout = timeout_;
+  state->deadline = std::chrono::steady_clock::now() + timeout_;
+  CancellationHandle handle(state);
+  handle.poll();  // sent now if the service is available
+  return handle;
 }
 
 bool

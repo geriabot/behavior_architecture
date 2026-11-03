@@ -329,6 +329,16 @@ What the implementation adds to, or changes from, sections 3 to 10:
   the request's) is sent only by the `llm_manager` dialects. The call log has the request's
   `max_tokens` only when it is not 0. `cache_prefix_len` is accepted and ignored, as the interaction system's
   gateway does for Ollama, OpenAI and Gemini.
+- **Cancellation.** A system can cancel the calls in progress of a `request_id` (for example
+  the questions of a dialogue that has ended) with the service `interpretation/cancel`
+  (`CancelInterpretation.srv`) or `InterpretationClient::cancel()`. Each of those calls returns
+  at once with source `invalid` and reason `cancelled`, without its fallback, since the asker no
+  longer needs an answer. To return at once, a call that has a `request_id` waits for its
+  backend in a thread of its own, which is left to end by itself when the call is cancelled;
+  a call without a `request_id` runs in the service's thread, as before. The server knows only
+  the calls in progress, so no state remains between calls. The client of the cancel service is
+  created at the first cancellation, so that a system that never cancels has the same entities
+  as before.
 - **Limits.** A route's `timeout_s` (default 120 s) limits each attempt; the budget limits the
   whole call, and an attempt cut by it fails with `budget`. The C++ client's own limit for a
   response (default 120 s) only protects the asker from a server that does not answer.

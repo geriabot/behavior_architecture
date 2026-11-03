@@ -15,5 +15,6 @@ bool success                # false only if the question is unknown or the reque
 string answer               # JSON object, valid against the question's schema (empty if invalid)
 string source               # the interpreter that answered ("llm", "rule", ...), or
                             # "fallback" or "invalid"
-string fallback_reason      # why: "timeout", "invalid", "model_down", "budget", "declined"
+string fallback_reason      # why: "timeout", "invalid", "model_down", "budget", "declined",
+                            # "cancelled" (CancelInterpretation.srv)
 string message              # a readable explanation (errors, retries)

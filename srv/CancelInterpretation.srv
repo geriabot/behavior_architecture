@@ -1,0 +1,9 @@
+# Cancel the calls in progress of a request (docs/INTERPRETATION.md, Cancelling calls), for
+# example when the dialogue that asked them has ended. Each of those calls returns at once with
+# source "invalid" and fallback_reason "cancelled". Later calls are not affected.
+
+string request_id           # the request_id of the calls to cancel
+---
+bool success                # false only if request_id is empty
+int32 cancelled             # how many calls in progress were cancelled (0: none was)
+string message

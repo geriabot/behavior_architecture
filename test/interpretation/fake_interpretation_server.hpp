@@ -17,11 +17,14 @@
 
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "nlohmann/json.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "behavior_architecture/srv/cancel_interpretation.hpp"
 #include "behavior_architecture/srv/interpret.hpp"
 
 namespace interpretation_test
@@ -34,11 +37,13 @@ namespace interpretation_test
  *   invalid  no valid answer (source "invalid", reason "timeout")
  *   slow     answers {} after 1.5 s
  *   other    success false (unknown question)
+ * Its cancel service records the request ids, and cancels one call of each (none if empty).
  */
 class FakeInterpretationServer
 {
 public:
   using Interpret = behavior_architecture::srv::Interpret;
+  using CancelInterpretation = behavior_architecture::srv::CancelInterpretation;
 
   explicit FakeInterpretationServer(const std::string & ns)
   {
@@ -70,8 +75,26 @@ public:
           response->message = "Unknown question";
         }
       });
+    cancel_service_ = node_->create_service<CancelInterpretation>(
+      "interpretation/cancel",
+      [this](const std::shared_ptr<CancelInterpretation::Request> request,
+      std::shared_ptr<CancelInterpretation::Response> response) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        cancelled_.push_back(request->request_id);
+        response->success = !request->request_id.empty();
+        response->cancelled = response->success ? 1 : 0;
+        response->message = response->success ? "1 calls in progress cancelled" :
+        "request_id is empty";
+      });
     executor_.add_node(node_);
     thread_ = std::thread([this]() {executor_.spin();});
+  }
+
+  /// The request ids received by the cancel service
+  std::vector<std::string> cancelled()
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return cancelled_;
   }
 
   ~FakeInterpretationServer()
@@ -83,6 +106,9 @@ public:
 private:
   rclcpp::Node::SharedPtr node_;
   rclcpp::Service<Interpret>::SharedPtr service_;
+  rclcpp::Service<CancelInterpretation>::SharedPtr cancel_service_;
+  std::mutex mutex_;
+  std::vector<std::string> cancelled_;
   rclcpp::executors::SingleThreadedExecutor executor_;
   std::thread thread_;
 };

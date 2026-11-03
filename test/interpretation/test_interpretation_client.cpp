@@ -28,6 +28,7 @@
 #include "fake_interpretation_server.hpp"
 
 using behavior_architecture::interpretation::BehaviorChoice;
+using behavior_architecture::interpretation::CancellationHandle;
 using behavior_architecture::interpretation::InterpretationClient;
 using behavior_architecture::interpretation::InterpretationHandle;
 using behavior_architecture::interpretation::InterpretationRequest;
@@ -40,7 +41,8 @@ namespace
 {
 
 /// Polls as a control cycle would (every 10 ms) until the handle is ready, or the limit
-Status wait_ready(InterpretationHandle & handle, std::chrono::milliseconds limit = 5000ms)
+template<typename HandleT>
+Status wait_ready(HandleT & handle, std::chrono::milliseconds limit = 5000ms)
 {
   const auto end = std::chrono::steady_clock::now() + limit;
   while (std::chrono::steady_clock::now() < end) {
@@ -235,6 +237,48 @@ TEST(InterpretationClientNodes, FromALifecycleNode)
   InterpretationHandle empty;
   EXPECT_FALSE(empty.valid());
   EXPECT_EQ(empty.poll(), Status::FAILED);
+}
+
+TEST_F(InterpretationClientTest, CancelsTheCallsOfARequest)
+{
+  interpretation_test::FakeInterpretationServer server("/client_test_a");
+  InterpretationClient client(node_);
+  auto handle = client.cancel("dialogue-1");
+  EXPECT_TRUE(handle.valid());
+  ASSERT_EQ(wait_ready(handle), Status::DONE);
+  EXPECT_EQ(handle.cancelled(), 1);
+  EXPECT_EQ(server.cancelled(), std::vector<std::string>({"dialogue-1"}));
+  // The client of the cancel service is reused
+  auto again = client.cancel("dialogue-2");
+  ASSERT_EQ(wait_ready(again), Status::DONE);
+  // An empty request_id is rejected by the server
+  auto empty = client.cancel("");
+  EXPECT_EQ(wait_ready(empty), Status::FAILED);
+  EXPECT_EQ(empty.cancelled(), 0);
+  EXPECT_EQ(empty.message(), "request_id is empty");
+  EXPECT_EQ(server.cancelled(), std::vector<std::string>({"dialogue-1", "dialogue-2", ""}));
+}
+
+TEST_F(InterpretationClientTest, CancelWithoutServerFailsAfterTheTimeout)
+{
+  InterpretationClient client(node_, InterpretationClient::DEFAULT_SERVICE, 300ms);
+  auto handle = client.cancel("dialogue-1");
+  EXPECT_EQ(wait_ready(handle), Status::FAILED);
+  EXPECT_NE(handle.message().find("/client_test_a/interpretation/cancel"), std::string::npos);
+  CancellationHandle none;
+  EXPECT_FALSE(none.valid());
+  EXPECT_EQ(none.poll(), Status::FAILED);
+}
+
+TEST(InterpretationClientNames, CancelServiceNextToTheInterpretService)
+{
+  EXPECT_EQ(
+    InterpretationClient::cancel_service_for(InterpretationClient::DEFAULT_SERVICE),
+    "interpretation/cancel");
+  EXPECT_EQ(
+    InterpretationClient::cancel_service_for("/ns/interpretation/interpret"),
+    "/ns/interpretation/cancel");
+  EXPECT_EQ(InterpretationClient::cancel_service_for("interpret"), "cancel");
 }
 
 int main(int argc, char ** argv)

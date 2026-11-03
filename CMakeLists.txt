@@ -234,6 +234,7 @@ endforeach()
 # The interface has its own target name: ${PROJECT_NAME} is the base library
 rosidl_generate_interfaces(${PROJECT_NAME}_interfaces
   "srv/Interpret.srv"
+  "srv/CancelInterpretation.srv"
   DEPENDENCIES sensor_msgs
 )
 rosidl_get_typesupport_target(interpretation_typesupport_target

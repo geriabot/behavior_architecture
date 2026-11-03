@@ -19,15 +19,28 @@ An interpreter answers a question, declines it (not applicable: the next interpr
 question's chain is tried) or fails (no valid answer: the question's fallback, or `invalid`).
 Adding one means a subclass of Interpreter registered in the server under its name; neither
 the service nor the callers change.
+
+A call with a request_id can be cancelled while it is in progress (InterpretationServer.cancel):
+an interpreter that waits for something slow runs it with run_cancellable(), which returns as
+soon as the call is cancelled (raising Cancelled) and leaves the work to end on its own.
 """
 
 import math
+import threading
 import time
 
 from behavior_interpretation.validation import check_choice
 from behavior_interpretation.validation import InvalidAnswer
 from behavior_interpretation.validation import TEXT_FIELD
 from behavior_interpretation.validation import validate_fields
+
+
+# How often a cancellable call checks whether it was cancelled while it waits
+CANCEL_POLL_S = 0.02
+
+
+class Cancelled(Exception):
+    """The call was cancelled while it was in progress."""
 
 
 class Call:
@@ -46,6 +59,7 @@ class Call:
         self.max_tokens = int(max_tokens or 0)  # the request's token cap; 0: the question's
         self.start = time.monotonic()
         self.details = {}            # what an interpreter adds to the call's log line
+        self.cancelled = threading.Event()  # set by InterpretationServer.cancel(request_id)
 
     def elapsed(self):
         return time.monotonic() - self.start
@@ -55,6 +69,39 @@ class Call:
         if self.budget_s <= 0.0:
             return math.inf
         return self.budget_s - self.elapsed()
+
+
+def run_cancellable(call, function, *args, **kwargs):
+    """
+    Return function(*args, **kwargs), or raise Cancelled as soon as the call is cancelled.
+
+    A call without a request_id cannot be cancelled: the function runs in the caller's thread,
+    as any other. Otherwise it runs in a thread of its own, which is left to end by itself
+    (its result is dropped) when the call is cancelled.
+    """
+    if call.cancelled.is_set():
+        raise Cancelled()
+    if not call.request_id:
+        return function(*args, **kwargs)
+    outcome = {}
+    done = threading.Event()
+
+    def work():
+        try:
+            outcome['result'] = function(*args, **kwargs)
+        except BaseException as exc:  # noqa: B902 (raised again in the caller's thread)
+            outcome['error'] = exc
+        finally:
+            done.set()
+
+    threading.Thread(target=work, daemon=True,
+                     name=f'interpretation-{call.question}').start()
+    while not done.wait(CANCEL_POLL_S):
+        if call.cancelled.is_set():
+            raise Cancelled()
+    if 'error' in outcome:
+        raise outcome['error']
+    return outcome['result']
 
 
 class Outcome:

@@ -550,6 +550,7 @@ a worked example. In summary:
 | Part | What it is |
 |---|---|
 | `srv/Interpret.srv` | The request: `question`, `request_id`, `context` (a JSON object), `text`, `images`, `budget_s` (0: no budget), `variant`, `max_tokens` (0: the question's). The response: `success`, `answer` (a JSON object), `source` (the interpreter that answered, `fallback` or `invalid`), `fallback_reason`, `message`. |
+| `srv/CancelInterpretation.srv` | Cancels the calls in progress of a `request_id` (for example when a dialogue ends): they return at once with source `invalid` and reason `cancelled`. |
 | `interpretation_server` | The server (Python package `behavior_interpretation`). Each question names a chain of *interpreters*: `llm` (a model, through a *route* that names a *backend*: `ollama`, `openai`, `gemini`, `llama_ros`, `fake`, `recorded`) and `rule` (deterministic code). Every call can be written to a call log, which the `recorded` backend replays. |
 | `InterpretationClient` | A non-blocking C++ client that an orchestrator owns (`libbehavior_architecture_interpretation`). |
 | `Interpret`, `InterpretationResult` | BT nodes (`libbehavior_architecture_interpretation_bt_nodes.so`) that ask without blocking the tree. |

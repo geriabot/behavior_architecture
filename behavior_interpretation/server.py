@@ -23,6 +23,11 @@ one that fails (no valid answer) ends the chain. Without an answer, the question
 (source "fallback") or nothing (source "invalid"), with the reason. Nothing is kept between
 calls; every call is written to the call log.
 
+cancel(request_id) cancels the calls in progress with that request_id (for example when the
+dialogue that asked them has ended): each returns at once with source "invalid" and the reason
+"cancelled", whatever its fallback. The server knows only the calls in progress: a cancel
+does not affect later calls of the same request_id.
+
 The configuration (all of it given when the server starts, never by a request):
 
   questions_file   YAML with `questions:` and, optionally, `routes:`, `default_route:`,
@@ -41,6 +46,7 @@ The configuration (all of it given when the server starts, never by a request):
 
 import json
 import math
+import threading
 
 from behavior_interpretation.call_log import CallLog
 from behavior_interpretation.call_log import LOG_FILE
@@ -154,6 +160,8 @@ class InterpretationServer:
                                   f'(routes: {sorted(self.routes)})')
 
         self.log = CallLog(log_dir, log_file)
+        self._in_progress = {}   # request_id -> the calls in progress, for cancel()
+        self._in_progress_lock = threading.Lock()
         self._check()
 
     # --- Configuration ----------------------------------------------------------------------
@@ -209,10 +217,13 @@ class InterpretationServer:
         max_tokens = _get(request, 'max_tokens', 0) or 0
         if max_tokens:
             record['max_tokens'] = max_tokens  # only when given: other calls log as before
+        self._track(call, True)
         try:
             result = self._interpret(call, request, record)
         except (RequestError, ConfigError) as exc:
             result = Result(False, message=str(exc))
+        finally:
+            self._track(call, False)
         record.update({'answer': result.answer_object, 'source': result.source,
                        'fallback_reason': result.fallback_reason, 'message': result.message,
                        'success': result.success})
@@ -261,10 +272,34 @@ class InterpretationServer:
         else:
             record['interpreter'] = ''
         reason = outcome.reason if outcome.kind == Outcome.FAILED else 'declined'
+        if reason == 'cancelled':
+            return Result(True, None, 'invalid', reason, '; '.join(messages))
         fallback = question.fallback(call.context, reason)
         if fallback is not None:
             return Result(True, fallback, 'fallback', reason, '; '.join(messages))
         return Result(True, None, 'invalid', reason, '; '.join(messages))
+
+    def cancel(self, request_id):
+        """Cancel the calls in progress with this request_id; return how many there were."""
+        if not request_id:
+            return 0
+        with self._in_progress_lock:
+            calls = list(self._in_progress.get(request_id, ()))
+        for call in calls:
+            call.cancelled.set()
+        return len(calls)
+
+    def _track(self, call, active):
+        if not call.request_id:
+            return
+        with self._in_progress_lock:
+            calls = self._in_progress.setdefault(call.request_id, set())
+            if active:
+                calls.add(call)
+            else:
+                calls.discard(call)
+                if not calls:
+                    del self._in_progress[call.request_id]
 
     def _images(self, question, images):
         mode = question.uses_image()
