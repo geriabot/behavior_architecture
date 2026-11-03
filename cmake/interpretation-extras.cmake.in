@@ -37,6 +37,9 @@ foreach(_export ${_behavior_architecture_interpretation_exports})
   string(REPLACE " " ";" _targets "${_targets}")
   if(_targets STREQUAL "behavior_architecture::interpretation")
     list(APPEND behavior_architecture_INTERPRETATION_TARGETS ${_targets})
+  elseif(_targets MATCHES "__rosidl_generator_py$")
+    # the Python bindings library is not for C++ packages: it stays in
+    # behavior_architecture_TARGETS__rosidl_generator_py, for interface packages
   else()
     list(APPEND behavior_architecture_INTERPRETATION_INTERFACE_TARGETS ${_targets})
   endif()

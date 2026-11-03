@@ -197,16 +197,26 @@ endif()
 # _LIBRARIES, _INCLUDE_DIRS, _DEPENDENCIES), which hold only the base library, as without
 # interpretation; a package links interpretation by naming it (behavior_architecture::interpretation
 # or ${behavior_architecture_INTERPRETATION_TARGETS}), from cmake/interpretation-extras.cmake.in.
-find_package(ament_cmake_python REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(nlohmann_json REQUIRED)
-
+#
 # The base's exports are declared first, as without interpretation: the order of the first
 # calls is the order in which the config file computes the default variables
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(${dependencies})
+# Right after the config files of those exports (the hooks of ament_package() run in the order
+# in which they are registered, and rosidl's are registered later), the config file keeps the
+# default variables (cmake/default_variables_snapshot-extras.cmake), which its last file
+# restores (cmake/default_variables-extras.cmake.in): whatever the config files of rosidl add
+# to them, in any version, a package that does not ask for interpretation receives the
+# variables of the base alone
+set(behavior_architecture_default_variables_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+ament_register_extension("ament_package" "behavior_architecture_default_variables"
+  "default_variables_package_hook.cmake")
+
+find_package(ament_cmake_python REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # The export lists that rosidl_generate_interfaces() fills: what it adds is moved to the opt-in
 # files
@@ -244,6 +254,12 @@ endforeach()
 # this one: export them by their names
 list(TRANSFORM _ROSIDL_CMAKE_EXPORT_TYPESUPPORT_LIBRARIES
   REPLACE ":${PROJECT_NAME}_interfaces__" ":${PROJECT_NAME}__")
+# Some builds of Jazzy's rosidl_generator_py export the Python bindings library with an empty
+# suffix (the variable rosidl_generator_py_suffix is not set), which puts it in
+# ${PROJECT_NAME}_TARGETS: export it in ${PROJECT_NAME}_TARGETS__rosidl_generator_py, as the
+# builds that set the suffix do
+list(TRANSFORM _ROSIDL_CMAKE_EXPORT_TYPESUPPORT_TARGETS
+  REPLACE "^:(${PROJECT_NAME}_interfaces__rosidl_generator_py)$" "__rosidl_generator_py:\\1")
 
 # Out of the default lists: the interface's export sets (installed here, as
 # ament_export_targets() would) and the dependencies that its targets need
@@ -380,8 +396,10 @@ endif()
 
 # Export information: the base's, declared above, before the interface. The opt-in
 # interpretation targets are defined first (rosidl's extras expect them), and their
-# dependencies are found last, once the default variables are computed.
+# dependencies are found after the default variables are computed.
 ament_package(
   CONFIG_EXTRAS cmake/interpretation-extras.cmake.in
-  CONFIG_EXTRAS_POST cmake/interpretation_dependencies-extras.cmake.in
+  CONFIG_EXTRAS_POST
+    cmake/interpretation_dependencies-extras.cmake.in
+    cmake/default_variables-extras.cmake.in
 )
