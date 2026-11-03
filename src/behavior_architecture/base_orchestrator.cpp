@@ -114,22 +114,28 @@ BaseOrchestrator::on_deactivate(const rclcpp_lifecycle::State & /* previous_stat
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 BaseOrchestrator::on_configure(const rclcpp_lifecycle::State & /* previous_state */)
 {
-  if (runners_.empty()) {
-    std::vector<BehaviorConfig> behaviors;
-    std::vector<std::string> plugins;
-    std::string pkg_name = "behavior_architecture";
+  // One runner per behavior of the configuration, unless a runner of that name was registered
+  // in code (register_runner()), which is kept
+  std::vector<BehaviorConfig> behaviors;
+  std::vector<std::string> plugins;
+  std::string pkg_name = "behavior_architecture";
 
-    if (blackboard_->get("behaviors_config", behaviors) &&
-      blackboard_->get("plugin_libraries", plugins))
-    {
-      std::ignore = blackboard_->get("package_name", pkg_name);
-      for (auto & bc : behaviors) {
-        auto runner = std::make_shared<BehaviorRunner>(
-          blackboard_, bc.name, bc.behavior_file, plugins,
-          bc.package_name.empty() ? pkg_name : bc.package_name,
-          bc.control_period_ms);
-        register_runner(bc.name, runner);
+  if (blackboard_->get("behaviors_config", behaviors) &&
+    blackboard_->get("plugin_libraries", plugins))
+  {
+    std::ignore = blackboard_->get("package_name", pkg_name);
+    for (auto & bc : behaviors) {
+      if (runners_.count(bc.name) != 0) {
+        RCLCPP_INFO(get_logger(),
+          "Behavior '%s' of the configuration: using the runner registered in code",
+          bc.name.c_str());
+        continue;
       }
+      auto runner = std::make_shared<BehaviorRunner>(
+        blackboard_, bc.name, bc.behavior_file, plugins,
+        bc.package_name.empty() ? pkg_name : bc.package_name,
+        bc.control_period_ms);
+      register_runner(bc.name, runner);
     }
   }
 

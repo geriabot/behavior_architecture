@@ -70,7 +70,7 @@ instead of the factory. `llm_plan_executor` and `llm_bt_executor` build their ow
 | Transition | `BaseOrchestrator` | `BehaviorRunner` |
 |---|---|---|
 | constructor | Declares `control_cycle_rate_ms` (default 100) and reads it; subscribes to `/behavior_status`. | Declares `enable_groot_monitoring` and `groot_port`; creates the lifecycle publisher of `/behavior_status`. |
-| `configure` | If no runner was registered, creates one `BehaviorRunner` per entry of `behaviors_config`; then configures every runner. | Default (no work). |
+| `configure` | Creates one `BehaviorRunner` per entry of `behaviors_config` whose name has no runner registered in code (`register_runner()`); then configures every runner. | Default (no work). |
 | `activate` | Starts the timer of `control_cycle()`. Activates no runner. | Builds the tree, creates its loggers, activates the publisher and starts the tick timer ([Behavior runners](#behavior-runners-trees-and-plugins)). If the tree cannot be built, the transition fails and the runner stays inactive. |
 | `deactivate` | Deactivates the active runners and stops the timer. | Stops the timer, removes the loggers, publishes `DEACTIVATED`, deactivates the publisher, halts the tree. |
 

@@ -387,7 +387,8 @@ if(BUILD_TESTING)
     add_dependencies(test_interpretation_bt_nodes ${PROJECT_NAME}_interpretation_bt_nodes)
   endif()
 
-  # The base: runners that cannot build their tree
+  # The base: runners that cannot build their tree, and the runners of the
+  # configuration and of code
   cmake_language(CALL ${_interpretation_add_gtest} test_base_orchestrator
     test/base/test_base_orchestrator.cpp
     SKIP_LINKING_MAIN_LIBRARIES

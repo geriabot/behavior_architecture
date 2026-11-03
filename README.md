@@ -375,14 +375,16 @@ the blackboard that `mission_executor` filled.
 | `last_status_` | protected | The last status received (`""`, `RUNNING`, `SUCCESS` or `FAILURE`; `DEACTIVATED` resets it to `""`). |
 | `blackboard_` | protected | The blackboard shared with every tree. |
 | `runners_` | protected | The runners, by name. |
-| `register_runner(name, runner)` | public | Add a runner created in code. Call it before the orchestrator is configured. |
+| `register_runner(name, runner)` | public | Add a runner created in code. Call it before the orchestrator is configured; a YAML behavior of the same name then uses this runner. |
 | `get_runners()` | public | The runners, which `mission_executor` adds to its executor. |
 | `on_configure()`, `on_activate()`, `on_deactivate()` | lifecycle | May be overridden; an override calls the base implementation. |
 
-`on_configure()` creates one runner per entry of `behaviors` and configures every runner. If a
-runner was registered with `register_runner()` before, the YAML entries are not created: either
-the YAML or the code defines the runners. `on_activate()` starts the control cycle;
-`on_deactivate()` deactivates every runner and stops it.
+`on_configure()` creates one runner per entry of `behaviors` whose `name` has no runner yet, and
+configures every runner. A runner registered with `register_runner()` before is kept, and the
+YAML entry of the same name, if any, uses it (the log says so): an orchestrator can create in
+code the runners that need it, for example to register nodes from code, and leave the others to
+the YAML. `on_activate()` starts the control cycle; `on_deactivate()` deactivates every runner
+and stops it.
 
 A runner that cannot build its tree (a file or a package that is not found, a plugin library
 that cannot be loaded, a node that is not registered, invalid XML, a tree whose `ID` is a node
@@ -722,6 +724,7 @@ colcon test-result --verbose
 
 | Test | What it checks |
 |---|---|
+| `test_base_orchestrator` (gtest) | `BehaviorRunner` and `BaseOrchestrator`: a tree that cannot be built (a tree ID that is a node ID, a missing file, an unknown node) fails the activation with its reason and is reported as `FAILURE`; the runners of the YAML and those registered in code. |
 | `test_interpretation_server` (pytest) | The server with the `fake` and `recorded` backends: questions, fields, validation, chains, budgets, fallbacks, images, backend requests, the call log and its replay. No model is contacted. |
 | `test_interpretation_client` (gtest) | `InterpretationClient` against a fake server node: non-blocking calls, namespaces, timeouts, cancellation, `choose_behavior`. |
 | `test_interpretation_bt_nodes` (gtest) | `Interpret` and `InterpretationResult`, loaded as a plugin. |

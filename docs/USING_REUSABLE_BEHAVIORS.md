@@ -62,9 +62,10 @@ auto runner = std::make_shared<behavior_architecture::BehaviorRunner>(
 register_runner("follow", runner);
 ```
 
-When any runner is registered this way, `on_configure()` creates none from the YAML
-`behaviors`: the orchestrator then creates all of its runners in code. The runners must also be
-spun; `mission_executor` adds every runner returned by `get_runners()` to its executor.
+`on_configure()` keeps the runners registered this way and creates a runner for each YAML
+behavior whose `name` has none; a YAML behavior of the same name uses the registered runner. The
+runners must also be spun; `mission_executor` adds every runner returned by `get_runners()` to
+its executor.
 
 ## Dependencies
 

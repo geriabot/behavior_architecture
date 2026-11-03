@@ -222,6 +222,46 @@ TEST_F(BaseOrchestratorTest, AFailedActivationIsReportedAsFailure)
   EXPECT_FALSE(orchestrator->check_behavior_finished());
 }
 
+TEST_F(BaseOrchestratorTest, ConfigurationBehaviorsWithoutARunnerRegisteredInCodeGetOne)
+{
+  blackboard_->set(
+    "behaviors_config", std::vector<BehaviorConfig>{
+    {"in_code", write("a.xml", kValid), "", 50},
+    {"from_yaml", write("b.xml", kValid), "", 50}});
+  blackboard_->set("plugin_libraries", std::vector<std::string>{});
+  auto orchestrator = std::make_shared<ProbeOrchestrator>(blackboard_);
+  auto registered = runner("in_code", write("c.xml", kValid));
+  orchestrator->register_runner("in_code", registered);
+  orchestrator->trigger_transition(Transition::TRANSITION_CONFIGURE);
+
+  ASSERT_EQ(orchestrator->runners_.size(), 2u);
+  EXPECT_EQ(orchestrator->runners_.at("in_code"), registered);
+  ASSERT_EQ(orchestrator->runners_.count("from_yaml"), 1u);
+  EXPECT_EQ(
+    orchestrator->runners_.at("from_yaml")->get_current_state().id(),
+    State::PRIMARY_STATE_INACTIVE);
+}
+
+TEST_F(BaseOrchestratorTest, EveryRunnerRegisteredInCodeCreatesNone)
+{
+  // As dummy_robot does: the runners of the configuration, registered in code
+  blackboard_->set(
+    "behaviors_config", std::vector<BehaviorConfig>{
+    {"state1_runner", write("a.xml", kValid), "", 50},
+    {"state2_runner", write("b.xml", kValid), "", 50}});
+  blackboard_->set("plugin_libraries", std::vector<std::string>{});
+  auto orchestrator = std::make_shared<ProbeOrchestrator>(blackboard_);
+  auto first = runner("state1_runner", write("a.xml", kValid));
+  auto second = runner("state2_runner", write("b.xml", kValid));
+  orchestrator->register_runner("state1_runner", first);
+  orchestrator->register_runner("state2_runner", second);
+  orchestrator->trigger_transition(Transition::TRANSITION_CONFIGURE);
+
+  ASSERT_EQ(orchestrator->runners_.size(), 2u);
+  EXPECT_EQ(orchestrator->runners_.at("state1_runner"), first);
+  EXPECT_EQ(orchestrator->runners_.at("state2_runner"), second);
+}
+
 int main(int argc, char ** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
