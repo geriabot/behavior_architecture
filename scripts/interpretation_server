@@ -16,9 +16,7 @@
 
 """The interpretation server (behavior_interpretation.node)."""
 
-import sys
-
-from behavior_interpretation.node import main
+from behavior_interpretation.node import exit_now, main
 
 if __name__ == '__main__':
-    sys.exit(main())
+    exit_now(main())

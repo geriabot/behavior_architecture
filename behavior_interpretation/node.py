@@ -55,6 +55,7 @@ from behavior_interpretation.server import InterpretationServer
 from rcl_interfaces.msg import ParameterDescriptor
 from rcl_interfaces.msg import ParameterType
 import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException
 from rclpy.executors import MultiThreadedExecutor
@@ -190,21 +191,55 @@ def main(args=None):
     """Run the server until Ctrl-C or a shutdown; exit quietly, with code 0."""
     rclpy.init(args=args)
     node = None
+    executor = None
     try:
-        node = InterpretationServerNode()
+        # The executor exists before the node says it is ready: an interrupt sent on that line
+        # never lands inside the executor's construction (a half-built executor reports an
+        # AttributeError when it is collected)
         executor = MultiThreadedExecutor()
+        node = InterpretationServerNode()
         executor.add_node(node)
         executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        # Under ros2 run or ros2 launch, a Ctrl-C in the terminal reaches the server twice (from
-        # the terminal and from its parent): a second interrupt must not cut the cleanup short
-        _ignore_interrupts()
-        if node is not None:
-            node.destroy_node()
-        rclpy.try_shutdown()
+        # Under ros2 run or ros2 launch, a Ctrl-C in the terminal reaches the server more than
+        # once (from the terminal and from its parent). Later interrupts are ignored from the
+        # first step of the cleanup on; one that arrives before that only restarts the cleanup,
+        # whose steps can all be repeated
+        for _ in range(5):
+            try:
+                _ignore_interrupts()
+                _shut_down(executor, node)
+                break
+            except KeyboardInterrupt:
+                continue
     return 0
+
+
+def _shut_down(executor, node):
+    if executor is not None:
+        executor.shutdown(timeout_sec=1.0)
+    if node is not None and not getattr(node, '_interpretation_destroyed', False):
+        node._interpretation_destroyed = True
+        node.destroy_node()
+    try:
+        rclpy.try_shutdown()
+    except RCLError:
+        # The context was shut down in the meantime (by the interrupt's own handler)
+        pass
+
+
+def exit_now(code):
+    """
+    End the process with this code once the server has shut down.
+
+    The interpreter's own finalization is skipped: after repeated interrupts, rclpy objects
+    collected at that point print "Exception ignored in ... __del__" although nothing failed.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
 
 
 def _ignore_interrupts():
@@ -213,4 +248,4 @@ def _ignore_interrupts():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    exit_now(main())
