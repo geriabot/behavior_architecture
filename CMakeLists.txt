@@ -387,8 +387,8 @@ if(BUILD_TESTING)
     add_dependencies(test_interpretation_bt_nodes ${PROJECT_NAME}_interpretation_bt_nodes)
   endif()
 
-  # The base: runners that cannot build their tree, and the runners of the
-  # configuration and of code
+  # The base: runners that cannot build their tree, the runners of the configuration and of
+  # code, and the files of the episodic memory
   cmake_language(CALL ${_interpretation_add_gtest} test_base_orchestrator
     test/base/test_base_orchestrator.cpp
     SKIP_LINKING_MAIN_LIBRARIES
@@ -398,6 +398,7 @@ if(BUILD_TESTING)
     target_link_libraries(test_base_orchestrator ${PROJECT_NAME})
     ament_target_dependencies(test_base_orchestrator ${dependencies})
   endif()
+  ament_add_gtest(test_episodic_memory_files test/base/test_episodic_memory_files.cpp)
 
   # test_plan_executor runs the trees of a directory (with a plugin that has no dependencies)
   cmake_language(CALL ${_interpretation_add_pytest} test_test_plan_executor

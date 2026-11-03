@@ -254,11 +254,15 @@ base implementation and adds its own work.
 ```
 mission_snapshot.json
 failure_history.json
-plan__success_episodic_memory.json
+plan_success_episodic_memory.json
 plan_failure_episodic_memory.json
 bt_success_episodic_memory.json
 bt_failure_episodic_memory.json
 ```
+
+The plan memory was formerly written as `plan__success_episodic_memory.json`; when
+`plan_success_episodic_memory.json` does not exist, that file is read instead, and the memory is
+then written under the current name (`episodic_memory_files.hpp`).
 
 ### LLMBTOrchestrator
 
@@ -506,7 +510,7 @@ behavior_architecture/
 │   ├── base_orchestrator.hpp, behavior_runner.hpp, orchestrator_factory.hpp
 │   ├── behavior_config.hpp, config_parser.hpp     the YAML configuration
 │   ├── llm_plan_orchestrator.hpp, mcp_llm_plan_orchestrator.hpp, llm_bt_orchestrator.hpp
-│   ├── test_plan_orchestrator.hpp, yaml_utils.hpp
+│   ├── test_plan_orchestrator.hpp, yaml_utils.hpp, episodic_memory_files.hpp
 │   ├── examples/                                   simple and restaurant orchestrators
 │   └── interpretation/                             InterpretationClient, BT nodes
 ├── src/

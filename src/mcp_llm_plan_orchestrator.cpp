@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "behavior_architecture/mcp_llm_plan_orchestrator.hpp"
+#include "behavior_architecture/episodic_memory_files.hpp"
 
 #include "behavior_architecture/orchestrator_factory.hpp"
 
@@ -54,10 +55,10 @@ MCPLLMPlanOrchestrator::MCPLLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
 
 	mission_snapshot_path_ = mcp_context_dir_ / "mission_snapshot.json";
 	failure_history_path_ = mcp_context_dir_ / "failure_history.json";
-	plan_failure_case_base_path_ = mcp_context_dir_ / "plan_failure_episodic_memory.json";
-	bt_failure_case_base_path_ = mcp_context_dir_ / "bt_failure_episodic_memory.json";
-	plan_case_base_path_ = mcp_context_dir_ / "plan__success_episodic_memory.json";
-	bt_case_base_path_ = mcp_context_dir_ / "bt_success_episodic_memory.json";
+	plan_failure_case_base_path_ = mcp_context_dir_ / PLAN_FAILURE_MEMORY_FILE;
+	bt_failure_case_base_path_ = mcp_context_dir_ / BT_FAILURE_MEMORY_FILE;
+	plan_case_base_path_ = mcp_context_dir_ / PLAN_SUCCESS_MEMORY_FILE;
+	bt_case_base_path_ = mcp_context_dir_ / BT_SUCCESS_MEMORY_FILE;
 
 	state_snapshot_ = "IDLE";
 	last_event_ = "orchestrator_initialized";
@@ -499,24 +500,27 @@ void MCPLLMPlanOrchestrator::record_successful_bt(
 void MCPLLMPlanOrchestrator::load_plan_case_base()
 {
 	plan_case_base_cache_.clear();
+	// Written under a former name by earlier versions
+	const auto plan_case_base_path = readable_memory_file(
+		plan_case_base_path_, mcp_context_dir_ / LEGACY_PLAN_SUCCESS_MEMORY_FILE);
 	
 	try {
-		if (!std::filesystem::exists(plan_case_base_path_)) {
+		if (!std::filesystem::exists(plan_case_base_path)) {
 			RCLCPP_DEBUG(get_logger(), "Plan case base file does not exist: %s", 
-				plan_case_base_path_.c_str());
+				plan_case_base_path.c_str());
 			return;
 		}
 
-		if (std::filesystem::file_size(plan_case_base_path_) == 0) {
+		if (std::filesystem::file_size(plan_case_base_path) == 0) {
 			RCLCPP_DEBUG(get_logger(), "Plan case base file is empty: %s", 
-				plan_case_base_path_.c_str());
+				plan_case_base_path.c_str());
 			return;
 		}
 
-		std::ifstream in(plan_case_base_path_);
+		std::ifstream in(plan_case_base_path);
 		if (!in.is_open()) {
 			RCLCPP_WARN(get_logger(), "Could not open plan case base file: %s", 
-				plan_case_base_path_.c_str());
+				plan_case_base_path.c_str());
 			return;
 		}
 
@@ -616,10 +620,10 @@ void MCPLLMPlanOrchestrator::load_plan_case_base()
 		
 		if (cases_loaded > 0) {
 			RCLCPP_INFO(get_logger(), "Loaded %d plan cases from: %s", 
-				cases_loaded, plan_case_base_path_.c_str());
+				cases_loaded, plan_case_base_path.c_str());
 		} else {
 			RCLCPP_DEBUG(get_logger(), "No valid plan cases found in: %s", 
-				plan_case_base_path_.c_str());
+				plan_case_base_path.c_str());
 		}
 		
 	} catch (const std::exception & e) {
