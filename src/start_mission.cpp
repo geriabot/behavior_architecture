@@ -64,11 +64,18 @@ int main(int argc, char ** argv)
 
   // Path to the YAML file with the goal definition
   node->declare_parameter("mission_file", std::string(""));
+  // Former name of mission_file, still accepted
+  node->declare_parameter("goal_file", std::string(""));
   // Optional separate file listing robot skills; overrides any 'skills' key in mission_file
   node->declare_parameter("skills_file", std::string(""));
 
-  const std::string mission_file   = node->get_parameter("mission_file").as_string();
+  std::string mission_file   = node->get_parameter("mission_file").as_string();
+  const std::string goal_file = node->get_parameter("goal_file").as_string();
   const std::string skills_file = node->get_parameter("skills_file").as_string();
+  if (mission_file.empty() && !goal_file.empty()) {
+    RCLCPP_WARN(node->get_logger(), "Parameter 'goal_file' is deprecated: use 'mission_file'");
+    mission_file = goal_file;
+  }
 
   if (mission_file.empty()) {
     RCLCPP_ERROR(node->get_logger(), "Parameter 'mission_file' is required");

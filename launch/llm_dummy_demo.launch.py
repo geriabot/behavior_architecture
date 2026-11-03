@@ -117,7 +117,7 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
             emulate_tty=True,
             parameters=[{
-                'goal_file': config_file,
+                'mission_file': config_file,
                 'skills_file': skills_file,
             }],
         )],

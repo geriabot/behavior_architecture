@@ -520,8 +520,8 @@ ros2 launch behavior_architecture llm_dummy_demo.launch.py launch_llm_nodes:=tru
 ```
 
 The launch file starts `mission_executor` with the configuration and, after 3 s,
-`start_mission`. It passes the configuration to `start_mission` in a parameter named
-`goal_file`, while `start_mission` reads `mission_file`; the mission is then sent by hand:
+`start_mission`, which sends the mission of the same file (`mission_file`) with the skills of
+`skills_file`. A mission is sent to a running orchestrator with:
 
 ```bash
 ros2 run behavior_architecture start_mission --ros-args \
@@ -685,7 +685,7 @@ log, by question and prompt, so that a run is reproduced without a model.
 | `interpretation_server` | interpretation | The interpretation server ([docs/INTERPRETATION.md](docs/INTERPRETATION.md#server-parameters)). |
 | `llm_plan_executor` | LLM | The `llm` orchestrator with built-in defaults. |
 | `llm_bt_executor` | LLM | `llm_bt_executor --objective <file> [options]` ([BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md)); `--help` lists the options. |
-| `start_mission` | LLM | Parameters `mission_file` (required) and `skills_file`. |
+| `start_mission` | LLM | Parameters `mission_file` (required; `goal_file` is accepted as its former name) and `skills_file`. |
 
 | Launch file | Arguments (default) | Runs |
 |---|---|---|
