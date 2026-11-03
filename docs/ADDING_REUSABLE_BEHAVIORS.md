@@ -1,254 +1,74 @@
-# Quick Start: Adding a New Reusable Behavior
+# Adding a tree to the catalogue
 
-This guide walks you through creating a new reusable behavior for the catalogue.
+A tree belongs in `behaviors/reusable/` when other packages can use it as it is: it depends only
+on BT nodes of published packages, it does not assume a particular robot beyond what it
+documents, and its failures are handled. Trees for one application belong in that application's
+package.
 
-## Step 1: Create Your Behavior XML
+## Conventions
 
-Start in the `examples/` directory for development:
+- File name: what the behavior does, in snake case (`follow_behavior.xml`,
+  `navigate_to_goal.xml`).
+- Tree `ID`: the same in CamelCase (`FollowBehavior`), different from every node ID.
+- Format: `BTCPP_format="4"`.
+- Values that a user may need to change are input ports of the subtree, remapped from the
+  including tree, rather than constants in the XML, when the tree is meant to be included as a
+  subtree.
+- Failure paths: `Fallback`, `ReactiveFallback`, `RetryUntilSuccessful` or a recovery branch, so
+  that the tree ends with `FAILURE` only when the behavior cannot be achieved.
 
-```bash
-cd src/behavior_architecture/behaviors/examples/
-cp follow_behavior.xml ../reusable/follow_behavior.xml  # Just as reference
-```
+## Header comment
 
-Create your new behavior file:
+Each file starts with a comment that a user can read without the code of its nodes:
 
 ```xml
 <?xml version="1.0"?>
 <root BTCPP_format="4">
-  
-  <!-- 
-    Behavior Name: Navigate To Goal
-    
-    Purpose: 
-    Navigate the robot to a specified goal location using the navigation stack
-    
-    Use Case:
-    When you need autonomous navigation to named locations or coordinates
-    
-    Required Plugins:
-    - libsocial_bt_nodes_plugin.so (for navigation nodes)
-    
-    Parameters:
-    - goal_name (string, required): Name of the goal location
-    - timeout (double, default: 60.0): Maximum time to reach goal in seconds
-    - recovery_enabled (bool, default: true): Enable recovery behaviors on failure
-    
-    Example Usage:
-    <SubTree ID="NavigateToGoal" goal_name="kitchen" timeout="30.0"/>
+  <!--
+    NavigateToGoal: drive to a named location.
+
+    Plugin libraries: libmy_nav_bt_nodes.so (package my_nav_bt_nodes)
+    Needs:            the navigation stack's action /navigate_to_pose
+    Ports:            goal_name (string, required); timeout (double, default 60.0, seconds)
+    Result:           SUCCESS on arrival; FAILURE after the timeout or if the goal is unknown
+    Usage:            <SubTree ID="NavigateToGoal" goal_name="kitchen" timeout="30.0"/>
   -->
-  
   <BehaviorTree ID="NavigateToGoal">
-    <Sequence>
-      <!-- Your behavior logic here -->
-      <NavigateToPose goal="{goal_name}" timeout="{timeout}"/>
-    </Sequence>
+    ...
   </BehaviorTree>
-  
 </root>
 ```
 
-## Step 2: Test Your Behavior
+## Testing it
 
-The `simple` example orchestrator runs the runner `state1_runner` (retrying it while it fails) and
-then `state2_runner`. Give your tree the first name in a test configuration:
+The `simple` example orchestrator runs `state1_runner`, retrying it while it fails, and then
+`state2_runner`. A test configuration gives the new tree the first name:
 
 ```yaml
-# config/test_navigate_config.yaml
+# /tmp/test_tree.yaml
 orchestrator_type: "simple"
 package_name: "behavior_architecture"
 plugin_libraries:
-  - "libsocial_bt_nodes_plugin.so"
+  - "libmy_nav_bt_nodes.so"
 behaviors:
   - name: "state1_runner"
-    behavior_file: "behaviors/examples/navigate_to_goal.xml"
-    control_period_ms: 100
+    behavior_file: "behaviors/reusable/navigate_to_goal.xml"
   - name: "state2_runner"
-    behavior_file: "behaviors/examples/state2.xml"
+    behavior_file: "/tmp/done.xml"   # any tree, e.g. <Sleep msec="100"/>
 ```
-
-Test it:
 
 ```bash
 colcon build --packages-select behavior_architecture
 source install/setup.bash
-
-ros2 run behavior_architecture mission_executor \
-  $(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/test_navigate_config.yaml
+ros2 run behavior_architecture mission_executor /tmp/test_tree.yaml
 ```
 
-## Step 3: Refine and Parameterize
+The tree is tested in the situations it documents, including the failures: a missing target, a
+lost connection, a timeout.
 
-Ensure your behavior is:
+## Registering it
 
-- ✅ **Generic**: Works in multiple contexts, not just your specific robot
-- ✅ **Parameterized**: All values that might change are BT parameters
-- ✅ **Robust**: Handles errors gracefully (use Fallback nodes)
-- ✅ **Documented**: Clear comments explaining everything
-
-Example of good parameterization:
-
-```xml
-<BehaviorTree ID="PickAndPlace">
-  <Sequence>
-    <!-- All parameters exposed, not hardcoded -->
-    <MoveToObject object_id="{target_object}" approach_distance="{approach_dist}"/>
-    <Grasp object_id="{target_object}" force="{grasp_force}"/>
-    <MoveToLocation location="{drop_location}"/>
-    <Release/>
-  </Sequence>
-</BehaviorTree>
-```
-
-## Step 4: Move to Reusable
-
-Once tested and refined:
-
-```bash
-cd behaviors/
-mv examples/navigate_to_goal.xml reusable/navigate_to_goal.xml
-```
-
-## Step 5: Update Documentation
-
-### Add to [behaviors/README.md](../behaviors/README.md)
-
-Add an entry in the "Available Reusable Behaviors" section:
-
-```markdown
-#### `navigate_to_goal.xml`
-**Purpose**: Navigate robot to a named goal location
-
-**Description**: Uses the navigation stack to autonomously navigate to a 
-specified goal location with built-in recovery behaviors.
-
-**Key Features**:
-- Autonomous navigation to named locations
-- Configurable timeout and recovery
-- Status reporting on navigation progress
-- Graceful failure handling
-
-**Required BT Nodes**:
-- `NavigateToPose`: Navigate to a named pose
-
-**Parameters** (configured in XML):
-- `goal_name` (string, required): Name of goal location
-- `timeout` (double, 60.0): Maximum navigation time in seconds
-- `recovery_enabled` (bool, true): Enable recovery behaviors
-
-**Usage Example**:
-\```xml
-<SubTree ID="NavigateToGoal" 
-         goal_name="kitchen" 
-         timeout="30.0"/>
-\```
-
-**Integration**:
-1. Ensure navigation stack is running
-2. Load behavior in your runner:
-   \```yaml
-   - name: "nav_runner"
-     behavior_file: "behaviors/reusable/navigate_to_goal.xml"
-   \```
-```
-
-## Step 6: Update Config Files (if used in examples)
-
-Update any config files that reference your behavior:
-
-```yaml
-# config/restaurant_config.yaml
-behaviors:
-  - name: "navigate_runner"
-    behavior_file: "behaviors/reusable/navigate_to_goal.xml"  # Updated path
-    control_period_ms: 100
-```
-
-## Step 7: Commit Your Changes
-
-```bash
-git add behaviors/reusable/navigate_to_goal.xml
-git add behaviors/README.md
-git add config/  # If you updated configs
-git commit -m "Add navigate_to_goal reusable behavior
-
-- Generic navigation behavior with parameterization
-- Includes error handling and recovery
-- Fully documented with usage examples"
-```
-
-## Checklist for Reusable Behaviors
-
-Before moving a behavior to `reusable/`, verify:
-
-- [ ] **Tested**: Works reliably in multiple scenarios
-- [ ] **Parameterized**: No hardcoded values, all configs are parameters
-- [ ] **Documented**: Complete header comment with all sections
-- [ ] **Generic**: Not specific to one robot or use case
-- [ ] **Error Handling**: Uses Fallback or recovery behaviors
-- [ ] **Dependencies Clear**: All required plugins listed
-- [ ] **Examples Provided**: Usage examples in documentation
-- [ ] **Named Well**: Descriptive, action-oriented filename
-- [ ] **Catalogue Updated**: Entry added to behaviors/README.md
-
-## Common Patterns
-
-### Pattern 1: Reactive Behavior (Always Monitoring)
-
-```xml
-<ReactiveFallback>
-  <ReactiveSequence>
-    <IsConditionMet condition="{condition}"/>
-    <DoAction action="{action}"/>
-  </ReactiveSequence>
-  <RecoveryAction/>
-</ReactiveFallback>
-```
-
-### Pattern 2: Sequential Task
-
-```xml
-<Sequence>
-  <Setup parameters="{params}"/>
-  <Execute task="{task}"/>
-  <Verify result="{result}"/>
-  <Cleanup/>
-</Sequence>
-```
-
-### Pattern 3: Retry with Limit
-
-```xml
-<RetryNode num_attempts="3">
-  <Fallback>
-    <ActionNode/>
-    <RecoveryNode/>
-  </Fallback>
-</RetryNode>
-```
-
-### Pattern 4: Parallel Actions
-
-```xml
-<Parallel success_count="2" failure_count="1">
-  <MonitorSafety/>
-  <ExecuteTask/>
-  <PublishStatus/>
-</Parallel>
-```
-
-## Tips
-
-1. **Start Simple**: Begin with a simple version, then add features
-2. **Test Incrementally**: Test each addition before moving on
-3. **Use SubTrees**: Break complex behaviors into smaller SubTrees
-4. **Log Generously**: Add logging nodes for debugging
-5. **Consider Edge Cases**: What happens if sensors fail? If the robot gets stuck?
-6. **Get Feedback**: Have others review your behavior before adding to catalogue
-
-## Need Help?
-
-- Check existing reusable behaviors in `behaviors/reusable/` for examples
-- Review [behaviors/README.md](../behaviors/README.md) for detailed guidelines
-- See [USING_REUSABLE_BEHAVIORS.md](USING_REUSABLE_BEHAVIORS.md) for usage patterns
-- Look at BehaviorTree.CPP documentation: https://www.behaviortree.dev/
+1. Add the file to `behaviors/reusable/`; `CMakeLists.txt` installs every `.xml` of `behaviors/`.
+2. Add its entry to [behaviors/README.md](../behaviors/README.md): what it does, its structure,
+   its BT nodes and plugin libraries, what it needs, its ports and its result.
+3. If it needs BT nodes of a new package, add that package to `examples.repos`.

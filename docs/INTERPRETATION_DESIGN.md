@@ -1,8 +1,9 @@
 # Interpretation: design
 
-Status: implemented on branch `devel` (created as `interpretation`). Sections 1 to 11 are the
-design as reviewed; section 12 lists where the implementation departs from it, and why. The
-user-facing documentation is in the [README](../README.md#interpretation-optional).
+This is the design record of interpretation. Sections 1 to 11 are the design; section 12 lists
+where the implementation departs from it, and why. The user guide and reference is
+[INTERPRETATION.md](INTERPRETATION.md), and [ARCHITECTURE.md](../ARCHITECTURE.md#interpretation)
+summarizes the design.
 
 ## 1. What interpretation is
 
@@ -120,7 +121,7 @@ string message
 `invalid` means that no valid answer came back and the question has no fallback: the asker gets
 no answer and decides what to do, which is distinguishable from a valid answer of the model (for
 example attention's `-1`, "the target is not there", which starts a search). A question whose
-answer is not needed at once (attention's Q5) is asked the same way; the client simply does not
+answer is not needed at once (attention's Q5) is asked the same way; the client does not
 wait for it.
 
 ## 5. Declaring a question
@@ -192,9 +193,9 @@ model's answers depend on it: the same schema for the same fields (attention's r
 gateway: its `format_schema`, `cache_prefix_len` and `think`), and the same image bytes (lossless
 PNG, no resizing, base64, in the order given; encodings `rgb8`, `bgr8`, `rgba8`, `bgra8`, `mono8`, `8UC3`). With one image the request is the one sent
 today (Ollama: `images: [png]` in the message; OpenAI: the text followed by a single `image_url`
-part in `content`, in that order); with none, neither the `images` key nor an `image_url` part. The current
-gateways stay in the branches that hold each paper and are retired afterwards. A *route* names a backend and a model; each question names a
-route, so different questions can use different models. This merges what the interaction
+part in `content`, in that order); with none, neither the `images` key nor an `image_url` part.
+A system's former gateway can be retired once the system uses the backends. A *route* names a
+backend and a model; each question names a route, so different questions can use different models. This merges what the interaction
 system's gateway (sessions, caching, providers) and the attention system's router (one route per
 question, images, schema dialects) do today.
 
@@ -242,18 +243,17 @@ question, images, schema dialects) do today.
   the replay of recorded model answers (including the recordings of finished campaigns, through
   the importers) through the old and the new implementation, compared decision by decision.
 
-## 11. Review
+## 11. Requirements from the systems that use it
 
-Reviewed by the attention system (2026-11-03): sections 5 to 10 now include its points (fields
+Sections 5 to 10 include the requirements of the systems that use the framework: fields taken
 from the call's context, the output-format block in the prompt, the system's own template and
 field for the choice of behavior, no retry and no fallback by default with a distinguishable
-`invalid` result, an optional image and variants, identical image encoding and schemas, a llama_ros
-backend, importers for the old recordings and the old log formats, asking without waiting). Its
-answers to the open points: the server in Python (today attention already goes C++ -> a Python
-router -> HTTP); one image per question is enough for its current questions, and the author asked
-for a list (zero or more, for several views or video frames), so the interface carries a list; the backends replicate the current gateways and
-replace them after the papers. Pending: the review by the interaction system's side of the same
-points (its gateway's payload, its call logs, its skills' split) and the author's approval.
+`invalid` result, an optional image and variants, identical image encoding and schemas, a
+llama_ros backend, importers for the old recordings and the old log formats, and asking without
+waiting. The server is written in Python, since the systems already reach their models through
+a Python gateway. One image per question covers the current questions; the interface carries a
+list (zero or more images), for several views or video frames. The backends replicate the
+current gateways so that they can replace them.
 
 ## 12. Implementation notes and deviations
 

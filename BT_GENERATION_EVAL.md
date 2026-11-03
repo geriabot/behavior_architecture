@@ -1,12 +1,13 @@
-# LLM BT Generation Evaluation
+# Evaluation of LLM behavior tree generation
 
 > Requires the optional LLM orchestrators: import `llm.repos` and build
-> ([README](README.md#with-the-llm-orchestrators)). The default objective and capabilities of
+> ([README](README.md#llm-orchestrators)). The default objective and capabilities of
 > `llm_bt_eval.launch.py` come from llm_bt_builder and
 > [dummy_bt_nodes](https://github.com/rodperex/dummy_bt_nodes), and its static transforms from
 > [dummy_robot](https://github.com/geriabot/dummy_robot) when it is installed.
 
-This workflow isolates Behavior Tree generation and repair from task planning.
+This workflow isolates behavior tree generation and repair from task planning, with the
+orchestrator `LLMBTOrchestrator` ([ARCHITECTURE.md](ARCHITECTURE.md#llmbtorchestrator)).
 It is intended for controlled experiments where the input is a single objective YAML and the outputs are:
 
 - Generated BT XML files for each attempt.
@@ -176,7 +177,7 @@ That directory contains:
 - `total_wall_time_ms`: end-to-end duration for the run.
 - `last_failure_code` and `last_failure_reason`: terminal failure descriptor for error analysis.
 
-## Recommended Analysis For The Paper
+## Recommended analysis
 
 - Success rate without fixes versus success rate with fixes.
 - Distribution of `generation_time_ms` and `execution_time_ms`.

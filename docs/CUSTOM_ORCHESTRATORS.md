@@ -1,31 +1,86 @@
 # An orchestrator in your own package
 
-How to run your robot's state machine with `mission_executor` without touching
-behavior_architecture: the orchestrator and the BT nodes are shared libraries of your package, and a
-YAML file ties them to the trees. The base layer of behavior_architecture is enough
-([README](../README.md#installation)).
+This guide builds a package, `my_robot`, whose FSM and BT nodes run with `mission_executor`
+without changes to behavior_architecture. The orchestrator and the BT nodes are shared libraries
+of the package, and a YAML file ties them to the trees. Only the base of behavior_architecture is
+needed ([README](../README.md#installation)). Every file below is complete; together they build
+and run on Jazzy and on Lyrical.
 
-Complete packages built this way:
-[dummy_robot](https://github.com/geriabot/dummy_robot) (a small one) and
+Packages built this way: [dummy_robot](https://github.com/geriabot/dummy_robot) (a small one) and
 [interaction_system](https://github.com/geriabot/interaction_system)
 (`interaction_system_core/interaction_system`).
 
 ```
 my_robot/
 ├── CMakeLists.txt
-├── package.xml                     <depend>behavior_architecture</depend>, behaviortree_cpp...
+├── package.xml
 ├── include/my_robot/my_orchestrator.hpp
-├── src/my_orchestrator.cpp         the state machine + OrchestratorRegistrar
-├── src/bt_nodes/...                your BT nodes + BT_REGISTER_NODES (optional)
-├── behaviors/*.xml                 the trees
+├── include/my_robot/bt_nodes/greet.hpp
+├── src/my_orchestrator.cpp         the FSM and its OrchestratorRegistrar
+├── src/bt_nodes/bt_plugins.cpp     BT_REGISTER_NODES
+├── behaviors/greet.xml
+├── behaviors/follow.xml
 ├── config/my_mission.yaml
 └── launch/my_mission.launch.py
 ```
 
-## 1. The orchestrator
+## 1. package.xml
 
-Derive from `behavior_architecture::BaseOrchestrator`, implement `control_cycle()` and
-`go_to_state(int)`, and register the class at file scope with a type name:
+```xml
+<?xml version="1.0"?>
+<package format="3">
+  <name>my_robot</name>
+  <version>0.1.0</version>
+  <description>An orchestrator and BT nodes for behavior_architecture</description>
+  <maintainer email="you@example.com">you</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>behavior_architecture</depend>
+  <depend>behaviortree_cpp</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>std_msgs</depend>
+  <depend>ament_index_cpp</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
+```
+
+## 2. The orchestrator
+
+```cpp
+// include/my_robot/my_orchestrator.hpp
+#ifndef MY_ROBOT__MY_ORCHESTRATOR_HPP_
+#define MY_ROBOT__MY_ORCHESTRATOR_HPP_
+
+#include "behavior_architecture/base_orchestrator.hpp"
+
+namespace my_robot
+{
+
+class MyOrchestrator : public behavior_architecture::BaseOrchestrator
+{
+public:
+  explicit MyOrchestrator(BT::Blackboard::Ptr blackboard);
+
+protected:
+  enum class State : int {INIT, GREET, FOLLOW, DONE};
+
+  void control_cycle() override;
+  void go_to_state(int state) override;
+
+private:
+  State state_ {State::INIT};
+};
+
+}  // namespace my_robot
+
+#endif  // MY_ROBOT__MY_ORCHESTRATOR_HPP_
+```
 
 ```cpp
 // src/my_orchestrator.cpp
@@ -65,12 +120,13 @@ void MyOrchestrator::control_cycle()
 void MyOrchestrator::go_to_state(int state)
 {
   state_ = static_cast<State>(state);
+  RCLCPP_INFO(get_logger(), "State %d", state);
   deactivate_all_runners();
   if (state_ == State::GREET) {activate_runner("greet");}
   if (state_ == State::FOLLOW) {activate_runner("follow");}
 }
 
-// The type "my_orchestrator" exists once mission_executor loads this library
+// Registers the type "my_orchestrator" when mission_executor loads this library
 static behavior_architecture::OrchestratorRegistrar<MyOrchestrator> registrar("my_orchestrator");
 
 }  // namespace my_robot
@@ -78,19 +134,69 @@ static behavior_architecture::OrchestratorRegistrar<MyOrchestrator> registrar("m
 
 What the base class provides:
 
-- The runner names are the `name` fields of the YAML `behaviors`; `on_configure` creates and
-  configures one runner per entry.
-- `check_behavior_finished()` is `true` once when the active runner reports `SUCCESS` or `FAILURE`
-  on `/behavior_status`; `last_status_` holds which. Keep one runner active at a time, since every
-  runner publishes on that topic.
-- `control_cycle()` runs every `control_cycle_rate_ms` (ROS parameter of the orchestrator node,
-  default 100).
-- The blackboard (`blackboard_`) is shared with every tree; `blackboard_->get("node", node)` gives
-  the `rclcpp::Node` that `mission_executor` created, for subscriptions or clients of your own.
-- An orchestrator may override `on_configure`, `on_activate` or `on_deactivate`; it then calls the
-  base implementation, which creates the runners and starts and stops the control cycle.
+- One runner per entry of the YAML `behaviors`, named after its `name`, created and configured in
+  `on_configure()`.
+- `check_behavior_finished()`, `true` once when the active runner reports `SUCCESS` or `FAILURE`
+  on `/behavior_status`, with the result in `last_status_`. Every runner publishes on that topic,
+  so one runner is active at a time.
+- The call of `control_cycle()` every `control_cycle_rate_ms` (a parameter of the orchestrator
+  node, default 100), from activation to deactivation.
+- The blackboard (`blackboard_`), shared with every tree. `blackboard_->get("node", node)` gives
+  the `rclcpp::Node` that `mission_executor` created, for subscriptions or clients of the
+  orchestrator's own; the orchestrator is a lifecycle node too, and can create them itself.
+- `on_configure()`, `on_activate()` and `on_deactivate()`, which an orchestrator may override; an
+  override calls the base implementation, which creates the runners and starts and stops the
+  control cycle.
 
-## 2. The BT nodes (if you have your own)
+The full API is in the [README](../README.md#baseorchestrator-api).
+
+## 3. A BT node
+
+```cpp
+// include/my_robot/bt_nodes/greet.hpp
+#ifndef MY_ROBOT__BT_NODES__GREET_HPP_
+#define MY_ROBOT__BT_NODES__GREET_HPP_
+
+#include <string>
+
+#include "behaviortree_cpp/action_node.h"
+#include "rclcpp/rclcpp.hpp"
+
+namespace my_robot
+{
+
+class Greet : public BT::SyncActionNode
+{
+public:
+  Greet(const std::string & name, const BT::NodeConfig & config)
+  : BT::SyncActionNode(name, config)
+  {
+    node_ = this->config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  }
+
+  static BT::PortsList providedPorts()
+  {
+    return {BT::InputPort<std::string>("text", "Hello", "What to say")};
+  }
+
+  BT::NodeStatus tick() override
+  {
+    const auto text = getInput<std::string>("text");
+    if (!text) {
+      return BT::NodeStatus::FAILURE;
+    }
+    RCLCPP_INFO(node_->get_logger(), "Greet: %s", text.value().c_str());
+    return BT::NodeStatus::SUCCESS;
+  }
+
+private:
+  rclcpp::Node::SharedPtr node_;
+};
+
+}  // namespace my_robot
+
+#endif  // MY_ROBOT__BT_NODES__GREET_HPP_
+```
 
 ```cpp
 // src/bt_nodes/bt_plugins.cpp
@@ -103,15 +209,23 @@ BT_REGISTER_NODES(factory)
 }
 ```
 
-A node that needs ROS takes the node from the blackboard:
-`config().blackboard->get<rclcpp::Node::SharedPtr>("node")`.
+A node that talks to a capability creates its publishers, subscriptions or clients on the
+blackboard's `node`; `mission_executor` spins that node. A node that waits for something returns
+`RUNNING` (a `StatefulActionNode`) instead of blocking the tick.
 
-## 3. CMakeLists.txt
+## 4. CMakeLists.txt
 
 ```cmake
+cmake_minimum_required(VERSION 3.10)
+project(my_robot)
+
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(behavior_architecture REQUIRED)
 
@@ -124,10 +238,12 @@ target_link_libraries(${PROJECT_NAME}_orchestrator
   ${behavior_architecture_LIBRARIES}
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
-  behaviortree_cpp::behaviortree_cpp)
+  behaviortree_cpp::behaviortree_cpp
+  ament_index_cpp::ament_index_cpp
+  ${std_msgs_TARGETS})
 
-# The BT nodes, loaded by every runner from plugin_libraries
-add_library(${PROJECT_NAME}_bt_nodes SHARED src/bt_nodes/bt_plugins.cpp src/bt_nodes/greet.cpp)
+# The BT nodes, loaded by every behavior runner from plugin_libraries
+add_library(${PROJECT_NAME}_bt_nodes SHARED src/bt_nodes/bt_plugins.cpp)
 target_include_directories(${PROJECT_NAME}_bt_nodes PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(${PROJECT_NAME}_bt_nodes
@@ -144,12 +260,43 @@ install(DIRECTORY behaviors config launch DESTINATION share/${PROJECT_NAME})
 ament_package()
 ```
 
-Both libraries go to `lib/` of the install space: `mission_executor` looks for the orchestrator
-library in `lib/` of the configuration's `package_name` and then by file name (a sourced
-workspace puts `lib/` on `LD_LIBRARY_PATH`); the runners load the BT plugins by file name. The form above (linking targets,
-not `ament_target_dependencies`) builds on both Jazzy and Lyrical.
+Both libraries go to `lib/` of the install space. `mission_executor` looks for the orchestrator
+library in `lib/` of the configuration's `package_name`, then by file name; the runners load the
+BT plugin by file name through the dynamic loader, and a sourced workspace puts `lib/` on
+`LD_LIBRARY_PATH`. The form above links targets instead of calling
+`ament_target_dependencies()`, so it builds on both Jazzy and Lyrical. A package that also asks
+interpretation questions adds `behavior_architecture::interpretation` to the orchestrator's
+libraries ([INTERPRETATION.md](INTERPRETATION.md#linking)).
 
-## 4. The configuration
+## 5. The trees
+
+```xml
+<!-- behaviors/greet.xml -->
+<root BTCPP_format="4">
+  <BehaviorTree ID="GreetBehavior">
+    <Sequence>
+      <Greet text="Hello, I am my_robot"/>
+      <Sleep msec="1000"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
+```
+
+```xml
+<!-- behaviors/follow.xml -->
+<root BTCPP_format="4">
+  <BehaviorTree ID="FollowBehavior">
+    <Sleep msec="1000"/>
+  </BehaviorTree>
+</root>
+```
+
+A tree's `ID` must differ from the IDs of the nodes it uses: a tree `ID="Greet"` containing the
+node `Greet` fails to build. `follow.xml` stands for a real behavior; the package's own
+`behaviors/reusable/follow_behavior.xml` follows a person with the nodes of social_bt_nodes
+([behaviors/README.md](../behaviors/README.md)).
+
+## 6. The configuration
 
 ```yaml
 # config/my_mission.yaml
@@ -163,16 +310,15 @@ plugin_libraries:
 behaviors:
   - name: "greet"
     behavior_file: "behaviors/greet.xml"
-    control_period_ms: 50
-  - name: "follow"                                   # a tree of behavior_architecture
-    behavior_file: "behaviors/reusable/follow_behavior.xml"
-    package_name: "behavior_architecture"
+  - name: "follow"
+    behavior_file: "behaviors/follow.xml"
 ```
 
-The keys are described in the [README](../README.md#mission-configuration). `follow_behavior.xml`
-needs the nodes of social_bt_nodes (`libsocial_bt_nodes_plugin.so` in `plugin_libraries`).
+The keys are described in the [README](../README.md#mission-configuration). To use a tree of
+behavior_architecture instead, the entry sets `package_name: "behavior_architecture"`, and
+`plugin_libraries` lists the libraries its nodes need.
 
-## 5. The launch file
+## 7. The launch file
 
 ```python
 # launch/my_mission.launch.py
@@ -190,38 +336,55 @@ def generate_launch_description():
     ])
 ```
 
-## 6. Build and run
+## 8. Build and run
 
 ```bash
+cd ~/ws
 colcon build --packages-up-to my_robot
 source install/setup.bash
 ros2 launch my_robot my_mission.launch.py
 ```
 
-The log shows `Loaded orchestrator library: libmy_robot_orchestrator.so`,
-`Registered orchestrator type: my_orchestrator` and one `BehaviorRunner constructor` per behaviour.
-`ros2 run behavior_architecture mission_executor` without arguments does not list your type: it
-lists only the types compiled into the executable, and yours is registered when the configuration
-loads its library.
+The log shows, in this order:
+
+```
+[orchestrator_factory]: Registered orchestrator type: my_orchestrator
+[mission_executor]: Loaded orchestrator library: libmy_robot_orchestrator.so
+[greet]: BehaviorRunner constructor (greet)
+[follow]: BehaviorRunner constructor (follow)
+[my_orchestrator]: State 1
+[my_robot_bt_node]: Greet: Hello, I am my_robot
+[greet]: Behavior tree (greet): SUCCESS
+[my_orchestrator]: State 2
+[follow]: Behavior tree (follow): SUCCESS
+[my_orchestrator]: State 3
+```
+
+`ros2 run behavior_architecture mission_executor` without arguments does not list
+`my_orchestrator`: it lists only the types compiled into the executable, and this one is
+registered when the configuration loads its library.
 
 ## Troubleshooting
 
-**`Failed to create orchestrator. Available types: ...`**: `orchestrator_type` does not match the
+**`Failed to create orchestrator. Available types: ...`.** `orchestrator_type` does not match the
 name given to `OrchestratorRegistrar`, or the library that contains it is missing from
-`orchestrator_libraries`. Keep the registrar at file scope in a `.cpp` that is part of the library.
+`orchestrator_libraries`. The registrar must be at namespace scope in a `.cpp` file that is part
+of the library.
 
-**`Failed to load orchestrator library`**: the library is not installed to `lib/`, the workspace is
-not sourced, or the library has undefined symbols (the `dlerror()` message says which). Check with
+**`Failed to load orchestrator library`.** The library is not installed to `lib/`, the workspace
+is not sourced, or the library has undefined symbols (the `dlerror()` message names them):
 `ldd -r install/my_robot/lib/libmy_robot_orchestrator.so`.
 
-**A BT node is not recognised when the tree is built**: the plugin library is missing from
-`plugin_libraries`, it was built without `BT_PLUGIN_EXPORT`, or it does not register the node with
-`BT_REGISTER_NODES`.
+**`Caught exception in callback for transition 13` when a runner is activated.** The tree could
+not be built: a node is not registered (the plugin library is missing from `plugin_libraries`,
+was built without `BT_PLUGIN_EXPORT`, or does not register the node with `BT_REGISTER_NODES`),
+the tree's `ID` equals a node ID, or the file was not found. The orchestrator then waits forever
+in that state.
 
-**A behaviour file is not found**: relative paths are resolved against the share directory of the
-behaviour's `package_name` (or the global one): check that `install(DIRECTORY behaviors ...)` puts
-the file there.
+**A behavior file is not found.** Relative paths are resolved in the share directory of the
+behavior's `package_name` (or the global one): `install(DIRECTORY behaviors ...)` must put the
+file there.
 
-**The orchestrator never sees a behaviour finish**: the runner name in `activate_runner()` must be a
-`name` of the YAML (a warning `Runner '...' not registered` says otherwise), and only one runner
+**The orchestrator never sees a behavior finish.** The runner name in `activate_runner()` must be
+a `name` of the YAML (otherwise the log shows `Runner '...' not registered`), and only one runner
 should be active at a time.
