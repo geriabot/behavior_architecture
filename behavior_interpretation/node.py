@@ -32,6 +32,9 @@ Calls are answered concurrently (the server keeps no state between them).
 """
 
 import os
+import signal
+import sys
+import threading
 import traceback
 
 from ament_index_python.packages import get_package_share_directory
@@ -139,6 +142,7 @@ class InterpretationServerNode(Node):
 
 
 def main(args=None):
+    """Run the server until Ctrl-C or a shutdown; exit quietly, with code 0."""
     rclpy.init(args=args)
     node = None
     try:
@@ -149,10 +153,19 @@ def main(args=None):
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # Under ros2 run or ros2 launch, a Ctrl-C in the terminal reaches the server twice (from
+        # the terminal and from its parent): a second interrupt must not cut the cleanup short
+        _ignore_interrupts()
         if node is not None:
             node.destroy_node()
         rclpy.try_shutdown()
+    return 0
+
+
+def _ignore_interrupts():
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

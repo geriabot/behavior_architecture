@@ -728,7 +728,7 @@ colcon test-result --verbose
 | `test_base_orchestrator` (gtest) | `BehaviorRunner` and `BaseOrchestrator`: a tree that cannot be built (a tree ID that is a node ID, a missing file, an unknown node) fails the activation with its reason and is reported as `FAILURE`; the runners of the YAML and those registered in code. |
 | `test_episodic_memory_files` (gtest) | The files of the episodic memory, and the former name of the plan memory. |
 | `test_test_plan_executor` (pytest) | `test_plan_executor` runs the trees of a directory in order, and stops at one that fails or cannot be built. |
-| `test_interpretation_server` (pytest) | The server with the `fake` and `recorded` backends: questions, fields, validation, chains, budgets, fallbacks, images, backend requests, the call log and its replay. No model is contacted. |
+| `test_interpretation_server` (pytest) | The server with the `fake` and `recorded` backends: questions, fields, validation, chains, budgets, fallbacks, images, backend requests, the call log and its replay; the process ends with code 0 on Ctrl-C. No model is contacted. |
 | `test_interpretation_client` (gtest) | `InterpretationClient` against a fake server node: non-blocking calls, namespaces, timeouts, cancellation, `choose_behavior`. |
 | `test_interpretation_bt_nodes` (gtest) | `Interpret` and `InterpretationResult`, loaded as a plugin. |
 

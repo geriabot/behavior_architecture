@@ -72,7 +72,8 @@ ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/
 The server validates its whole configuration when it starts (every question and each of its
 variants, templates, routes, rules and modules) and exits with the reason if any of them cannot
 be used. Once ready, it logs each route, each question with its chain of interpreters, the path
-of the call log and `Interpretation server ready on interpretation/interpret`.
+of the call log and `Interpretation server ready on interpretation/interpret`. Ctrl-C stops it;
+the process exits with code 0.
 
 ## Server parameters
 
