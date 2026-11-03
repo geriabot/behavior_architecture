@@ -94,7 +94,8 @@ TEST_F(InterpretBTNodesTest, WaitsWithoutBlockingTheTree)
   const auto status = run(
     tree(
       "<Interpret question=\"echo\" context=\"{ctx}\" text=\"hi\" images=\"{frames}\" "
-      "budget_s=\"1.5\" variant=\"v\" answer=\"{answer}\" source=\"{source}\"/>"), &ticks);
+      "budget_s=\"1.5\" variant=\"v\" max_tokens=\"32\" answer=\"{answer}\" "
+      "source=\"{source}\"/>"), &ticks);
   EXPECT_EQ(status, BT::NodeStatus::SUCCESS);
   EXPECT_GE(ticks, 1);
   EXPECT_EQ(blackboard_->get<std::string>("source"), "llm");
@@ -104,6 +105,7 @@ TEST_F(InterpretBTNodesTest, WaitsWithoutBlockingTheTree)
   EXPECT_EQ(answer["images"], 2);
   EXPECT_EQ(answer["variant"], "v");
   EXPECT_DOUBLE_EQ(answer["budget_s"].get<double>(), 1.5);
+  EXPECT_EQ(answer["max_tokens"], 32);
 }
 
 TEST_F(InterpretBTNodesTest, DefaultOutputKeysArePrefixed)

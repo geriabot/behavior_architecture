@@ -94,4 +94,10 @@ def test_service_in_the_namespace(ros):
     assert call(client, request).success
     prompts = [c['prompt'] for c in node.server.routes['text'].backend.calls]
     assert prompts == ['Which of [1, 2]?', 'Other [1, 2]']
+    # The token cap of a call: 0 by default (the question's), or the request's
+    assert srv.Interpret.Request().max_tokens == 0
+    request.max_tokens = 30
+    assert call(client, request).success
+    limits = [c['limits'].max_tokens for c in node.server.routes['text'].backend.calls]
+    assert limits == [0, 0, 30]
     assert (tmp_path / 'log' / 'calls.jsonl').exists()

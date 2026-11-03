@@ -189,6 +189,9 @@ class InterpretationServer:
                     (), _get(request, 'budget_s', 0.0) or 0.0, variant)
         record = {'question': name, 'variant': variant, 'request_id': call.request_id,
                   'text': call.text, 'budget_s': call.budget_s}
+        max_tokens = _get(request, 'max_tokens', 0) or 0
+        if max_tokens:
+            record['max_tokens'] = max_tokens  # only when given: other calls log as before
         try:
             result = self._interpret(call, request, record)
         except (RequestError, ConfigError) as exc:
@@ -205,6 +208,10 @@ class InterpretationServer:
                                f'(questions: {sorted(self.definitions)})')
         if not math.isfinite(call.budget_s) or call.budget_s < 0.0:
             raise RequestError(f'budget_s must be 0 or positive, not {call.budget_s}')
+        max_tokens = _get(request, 'max_tokens', 0) or 0
+        if not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens < 0:
+            raise RequestError(f'max_tokens must be 0 or a positive integer, not {max_tokens!r}')
+        call.max_tokens = max_tokens
         question = self.question(call.question, call.variant)
 
         context_text = _get(request, 'context', '') or ''

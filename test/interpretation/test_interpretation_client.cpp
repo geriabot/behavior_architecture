@@ -87,6 +87,7 @@ TEST_F(InterpretationClientTest, AsksWithoutBlockingInTheNodesNamespace)
   request.images.resize(2);
   request.budget_s = 2.5;
   request.variant = "no_image";
+  request.max_tokens = 64;
   const auto start = std::chrono::steady_clock::now();
   auto handle = client.ask(request);
   EXPECT_LT(std::chrono::steady_clock::now() - start, 200ms);  // ask() does not wait
@@ -102,6 +103,7 @@ TEST_F(InterpretationClientTest, AsksWithoutBlockingInTheNodesNamespace)
   EXPECT_EQ(answer["images"], 2);
   EXPECT_EQ(answer["variant"], "no_image");
   EXPECT_DOUBLE_EQ(answer["budget_s"].get<double>(), 2.5);
+  EXPECT_EQ(answer["max_tokens"], 64);
   // A copy of the handle shares the question
   InterpretationHandle copy = handle;
   EXPECT_TRUE(copy.ready());

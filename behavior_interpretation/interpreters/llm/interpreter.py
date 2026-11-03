@@ -23,6 +23,7 @@ and validate (the fields, unless `validate: object`, choices_from and the class'
 A failed or invalid answer is retried up to the question's max_retries (0 = no retry). Each
 attempt is limited by the route's timeout_s and by what is left of the request's budget
 (budget_s 0 cuts nothing); when the budget is spent the call fails with the reason `budget`.
+The token cap is the request's max_tokens, or the question's when the request gives none (0).
 
 A route names a backend, a model and the backend's options:
 
@@ -121,7 +122,7 @@ class LLMInterpreter(Interpreter):
                 break
             timeout = min(route.timeout_s, remaining)
             budget_bound = not math.isinf(remaining) and remaining < route.timeout_s
-            limits = Limits(timeout, question.spec.get('max_tokens', 0))
+            limits = Limits(timeout, call.max_tokens or question.spec.get('max_tokens', 0))
             attempt = {'raw': None, 'error': ''}
             attempts.append(attempt)
             start = time.monotonic()

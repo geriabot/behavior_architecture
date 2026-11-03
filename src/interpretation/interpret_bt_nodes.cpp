@@ -208,6 +208,7 @@ InterpretNode::onStart()
   getInput("text", request.text);
   getInput("request_id", request.request_id);
   getInput("budget_s", request.budget_s);
+  getInput("max_tokens", request.max_tokens);
   std::vector<sensor_msgs::msg::Image> images;
   if (getInput("images", images)) {
     request.images = images;

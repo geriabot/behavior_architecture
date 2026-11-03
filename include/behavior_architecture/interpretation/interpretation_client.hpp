@@ -41,6 +41,7 @@ struct InterpretationRequest
   double budget_s {0.0};  // 0 = only the server's per-call limit
   std::string variant;    // "" = the server's configuration
   std::string request_id;
+  int max_tokens {0};     // the token cap of this call; 0 = the question's max_tokens
 };
 
 /// The answer (the fields of the response), or why there is none

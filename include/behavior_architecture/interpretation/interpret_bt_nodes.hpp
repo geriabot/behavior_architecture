@@ -87,6 +87,8 @@ public:
       BT::InputPort<std::vector<sensor_msgs::msg::Image>>(
         "images", "Zero or more images (a blackboard entry)"),
       BT::InputPort<double>("budget_s", 0.0, "Time left for the answer (0: no budget)"),
+      BT::InputPort<int>(
+        "max_tokens", 0, "Token cap of this call (0: the question's max_tokens)"),
       BT::InputPort<bool>("wait", true, "Wait for the answer (false: InterpretationResult)"),
       BT::InputPort<std::string>(
         "result_key", "", "wait=false: the blackboard key (\"\": interpretation_pending_<q>)"),

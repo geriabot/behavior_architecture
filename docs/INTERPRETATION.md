@@ -166,7 +166,7 @@ questions:
 | `max_retries` | `0` | Further attempts after a failed or invalid answer of the model. |
 | `fallback` | none | `none`, or the answer to give when there is no valid one. A value that is not an object needs exactly one field and becomes `{<field>: <value>}`. |
 | `route` | `""` | The route of the `llm` interpreter; empty: `default_route`. |
-| `max_tokens` | `0` | Token cap of the answer (0: none). Sent only by the `llm_manager` dialects. |
+| `max_tokens` | `0` | Token cap of the answer (0: none). A request's `max_tokens` replaces it for that call. Sent only by the `llm_manager` dialects. |
 | `parse` | `loose` | How the model's text is read: `loose`, `strict` or `text` ([Validation](#validation), [Text answers](#text-answers)). |
 | `allow_empty` | `false` | With `parse: text`, an empty text (or only blanks) is a valid answer. |
 | `validate` | `fields` | `fields`: the answer must have the fields, typed; `object`: the parsed object is returned as it is ([Validation](#validation)). |
@@ -379,6 +379,7 @@ class ExtractSlots(Question):
 | `images` | `sensor_msgs/Image[]` | Zero or more images; used only by questions that use images. |
 | `budget_s` | `float64` | Time left for the answer; 0: only the per-attempt limit. |
 | `variant` | `string` | A variant of the question; `""`: the server's configuration. |
+| `max_tokens` | `int32` | The token cap of this call; 0: the question's `max_tokens`. Like the question's, it is sent only by the `llm_manager` dialects. Negative: the request is malformed. |
 
 | Response field | Type | Meaning |
 |---|---|---|
@@ -436,7 +437,7 @@ if (slots_.ready()) {
 | Member | Description |
 |---|---|
 | `InterpretationClient(node, service_name = "interpretation/interpret", timeout = 120 s)` | `node`: an `rclcpp::Node`, an `rclcpp_lifecycle::LifecycleNode`, or a pointer to either. The service name is resolved in the node's namespace. `timeout` limits the wait for the service and for the response, from the call to `ask()`. |
-| `ask(InterpretationRequest)` | Ask; returns a handle at once. `InterpretationRequest` has `question`, `context`, `text`, `images`, `budget_s`, `variant`, `request_id`. |
+| `ask(InterpretationRequest)` | Ask; returns a handle at once. `InterpretationRequest` has `question`, `context`, `text`, `images`, `budget_s`, `variant`, `request_id` and `max_tokens` (0: the question's). |
 | `ask(question, context, text = "", images = {}, budget_s = 0)` | The same, with the common fields. |
 | `choose_behavior(question, offered, context = "", text = "", budget_s = 0, variant = "")` | Ask the system's question that chooses a behavior. Adds `offered_behaviors` (`[{id, name, description}]`) and `offered_ids` (`[id]`) to the context. Throws `std::invalid_argument` if the context is not a JSON object. |
 | `behavior_choice(result, offered, answer_field = "")` (static) | The chosen id, or `-1` with the reason: no response, no valid answer, none fits (`-1`), or an id that was not offered. `answer_field`: the field with the id (`""`: the only field). |
@@ -477,6 +478,7 @@ The nodes take the ROS node from the blackboard key `node` (an `rclcpp::Node::Sh
 | `text` | in | `""` | Free text. |
 | `images` | in | | A blackboard entry of type `std::vector<sensor_msgs::msg::Image>`. |
 | `budget_s` | in | `0` | Time left for the answer (0: no budget). |
+| `max_tokens` | in | `0` | Token cap of this call (0: the question's `max_tokens`). |
 | `wait` | in | `true` | `true`: `RUNNING` until the answer arrives. `false`: `SUCCESS` at once; the question in progress is stored under `result_key`. |
 | `result_key` | in | `""` | With `wait="false"`, the blackboard key of the question in progress (`""`: `interpretation_pending_<question>`). |
 | `request_id` | in | `""` | Who asks, for the server's log. |
@@ -573,7 +575,7 @@ image is saved once as `<log_dir>/images/<sha256>.png`.
 | Key | Content |
 |---|---|
 | `time` | UTC, ISO 8601. |
-| `question`, `variant`, `request_id`, `context`, `text`, `budget_s` | The request. |
+| `question`, `variant`, `request_id`, `context`, `text`, `budget_s` | The request (and `max_tokens`, when the request gives one). |
 | `images` | Paths of the images, relative to `log_dir`. |
 | `interpreters`, `interpreter` | The chain tried, and the interpreter that answered or failed last (`""` if every one declined). |
 | `route`, `backend`, `model`, `prompt`, `schema` | What the model received (when `llm` was called). |

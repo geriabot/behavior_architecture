@@ -265,7 +265,9 @@ What the implementation adds to, or changes from, sections 3 to 10:
   for the interface is `behavior_architecture` (`behavior_architecture.srv`), and a second
   package of that name would collide with it.
 - **Interface.** The request has an optional `string variant` (empty: the server's
-  configuration), which the BT node's `variant` port fills. `fallback_reason` has one more value,
+  configuration), which the BT node's `variant` port fills, and, last, an optional
+  `int32 max_tokens` (0: the question's own cap), the token cap of that call, which the
+  client's `InterpretationRequest::max_tokens` and the BT node's `max_tokens` port fill. `fallback_reason` has one more value,
   `declined`, when every interpreter of the chain declined. A request with more images than the
   question's `max_images`, or with none for a question with `uses_image: true`, is malformed
   (`success` false).
@@ -321,8 +323,9 @@ What the implementation adds to, or changes from, sections 3 to 10:
   the client and the BT nodes treat it as any other answer. A question class may override
   `parse(text)`, so that a system that reads its answers in a way of its own (as the
   interaction system's skills do) keeps that reading, and its validation, exactly.
-- **Token cap.** Attention's router sends no token cap, so `max_tokens` is sent only by the
-  `llm_manager` dialects. `cache_prefix_len` is accepted and ignored, as the interaction system's
+- **Token cap.** Attention's router sends no token cap, so `max_tokens` (the question's, or
+  the request's) is sent only by the `llm_manager` dialects. The call log has the request's
+  `max_tokens` only when it is not 0. `cache_prefix_len` is accepted and ignored, as the interaction system's
   gateway does for Ollama, OpenAI and Gemini.
 - **Limits.** A route's `timeout_s` (default 120 s) limits each attempt; the budget limits the
   whole call, and an attempt cut by it fails with `budget`. The C++ client's own limit for a

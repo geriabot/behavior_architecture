@@ -158,6 +158,7 @@ InterpretationClient::ask(const InterpretationRequest & request)
   state->request->images = request.images;
   state->request->budget_s = request.budget_s;
   state->request->variant = request.variant;
+  state->request->max_tokens = request.max_tokens;
   state->timeout = timeout_;
   state->deadline = std::chrono::steady_clock::now() + timeout_;
   InterpretationHandle handle(state);

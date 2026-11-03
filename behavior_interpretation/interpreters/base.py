@@ -34,7 +34,7 @@ class Call:
     """One request, as the interpreters see it (the server keeps nothing of it after)."""
 
     def __init__(self, question, request_id='', context=None, text='', images=(),
-                 budget_s=0.0, variant='', fields=()):
+                 budget_s=0.0, variant='', fields=(), max_tokens=0):
         self.question = question
         self.request_id = request_id
         self.context = context or {}
@@ -43,6 +43,7 @@ class Call:
         self.budget_s = float(budget_s or 0.0)
         self.variant = variant
         self.fields = list(fields)
+        self.max_tokens = int(max_tokens or 0)  # the request's token cap; 0: the question's
         self.start = time.monotonic()
         self.details = {}            # what an interpreter adds to the call's log line
 

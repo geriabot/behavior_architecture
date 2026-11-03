@@ -53,7 +53,7 @@ public:
           nlohmann::json answer = {
             {"context", request->context}, {"text", request->text},
             {"images", request->images.size()}, {"variant", request->variant},
-            {"budget_s", request->budget_s}};
+            {"budget_s", request->budget_s}, {"max_tokens", request->max_tokens}};
           response->answer = answer.dump();
         } else if (request->question == "choose") {
           response->answer = nlohmann::json({{"behavior_id", std::stoi(request->text)}}).dump();

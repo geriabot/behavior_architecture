@@ -9,6 +9,7 @@ sensor_msgs/Image[] images  # optional, zero or more (a frame, several views, a 
                             # sent only to the questions that use images
 float64 budget_s            # time left for this answer; 0 = only the per-call limit
 string variant              # optional: a variant of the question; empty = the server's own
+int32 max_tokens            # optional: the token cap of this call; 0 = the question's max_tokens
 ---
 bool success                # false only if the question is unknown or the request malformed
 string answer               # JSON object, valid against the question's schema (empty if invalid)
