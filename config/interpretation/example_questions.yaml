@@ -1,0 +1,19 @@
+# The questions of an example system (see docs/INTERPRETATION_DESIGN.md, section 5).
+questions:
+  # Which behavior fits a request: asked through InterpretationClient::choose_behavior, which
+  # puts the offered behaviors in the context (offered_behaviors, offered_ids)
+  choose_behavior:
+    template: choose_behavior
+    fields: ["int:behavior_id"]
+    choices_from: context.offered_ids   # an id that was not offered is invalid (or -1)
+    max_retries: 0
+    fallback: none
+    max_tokens: 20
+    variants:
+      terse: {template: choose_behavior_terse}
+
+  # The values of a form that a line gives: the fields come with the call
+  extract_slots:
+    template: extract_slots
+    fields_from: context.slots          # e.g. ["str:name", "int:age"]
+    fallback: none

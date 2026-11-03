@@ -1,0 +1,27 @@
+# Parameters of an interpretation server (launch/interpretation.launch.py, params_file:=).
+# Each system launches its own server in its namespace, with its own files. This example
+# answers with a fake model (scripted answers), so it runs without any model server.
+/**/interpretation_server:
+  ros__parameters:
+    # package://<package>/<path> is resolved in the package's share directory
+    questions_file: package://behavior_architecture/config/interpretation/example_questions.yaml
+    templates_file: package://behavior_architecture/config/interpretation/example_templates.yaml
+    question_modules: [""]        # Python modules with Question subclasses and rules
+    default_route: text
+    routes:
+      text:
+        backend: fake             # ollama | openai | gemini | llama_ros | fake | recorded
+        model: ""
+        answers: ['{"behavior_id": -1}']
+        # e.g. for Ollama:
+        #   backend: ollama
+        #   model: qwen2.5vl:7b
+        #   url: http://localhost:11434
+        #   keep_alive: 30m
+        #   num_ctx: 8192
+        #   timeout_s: 180.0
+    # variants:                   # the variant of a question when a request names none
+    #   choose_behavior: terse
+    # interpreter_overrides:      # the interpreters of a question, without editing it
+    #   choose_behavior: "rule:first_offered,llm"
+    log_dir: ""                   # where the call log is written ("" = no log)

@@ -1,0 +1,6 @@
+# Prompt templates: {name} is a key of the call's context, {text} its text and
+# {output_format} the JSON schema of the answer; {{ and }} write a brace.
+templates:
+  choose_behavior: "A robot was asked: {text}\n\nIt can run these behaviors:\n{offered_behaviors}\n\nAnswer with the id of the behavior that fits the request, or -1 if none fits, as JSON with this schema:\n{output_format}"
+  choose_behavior_terse: "Request: {text}\nBehaviors: {offered_behaviors}\nThe id that fits (-1: none)."
+  extract_slots: "A person said: {text}\n\nGive the values it states, as JSON with this schema:\n{output_format}"
