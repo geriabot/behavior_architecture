@@ -167,7 +167,8 @@ questions:
 | `fallback` | none | `none`, or the answer to give when there is no valid one. A value that is not an object needs exactly one field and becomes `{<field>: <value>}`. |
 | `route` | `""` | The route of the `llm` interpreter; empty: `default_route`. |
 | `max_tokens` | `0` | Token cap of the answer (0: none). Sent only by the `llm_manager` dialects. |
-| `parse` | `loose` | How the model's text is read: `loose` or `strict` ([Validation](#validation)). |
+| `parse` | `loose` | How the model's text is read: `loose`, `strict` or `text` ([Validation](#validation), [Text answers](#text-answers)). |
+| `allow_empty` | `false` | With `parse: text`, an empty text (or only blanks) is a valid answer. |
 | `validate` | `fields` | `fields`: the answer must have the fields, typed; `object`: the parsed object is returned as it is ([Validation](#validation)). |
 | `rule` | `""` | The rule of the `rule` interpreter when the chain does not name one. Empty: the question class's `answer_without_model()`. |
 | `output_formatter` | `""` | A formatter, registered by a question module, that writes `{output_format}`. |
@@ -219,6 +220,37 @@ former gateway did:
 
 `parse: strict` with `validate: object` is what the attention system's `llm_router` returned:
 every key of the object, which the asker then read field by field.
+
+A question class may also read the text itself, by overriding `parse(text)` ([Question
+modules](#question-modules)): it returns the object, or raises `InvalidAnswer`, and the object
+is then validated as above.
+
+### Text answers
+
+A question whose answer is free text (a line to be said, a summary) has `parse: text`. The
+model's text is not parsed: the answer is the object `{"text": "<the text>"}`, with the text as
+the backend returns it (the `llm_router` dialects of `ollama` and `openai` remove a code fence
+around a whole answer, and the streamed ones remove the blanks at its ends).
+
+```yaml
+questions:
+  say_line:
+    template: say_line
+    parse: text
+    max_retries: 1
+    fallback: "Sorry, could you say that again?"
+```
+
+- No schema is sent to the model (no structured output), and `{output_format}` is empty unless
+  the question has an `output_formatter`. `fields`, `fields_from` and `schema` are
+  configuration errors; the answer has the one field `text` (a `str`).
+- An empty text, or one of blanks only, is invalid (reason `invalid`) unless the question has
+  `allow_empty: true`.
+- Retries, fallbacks and `invalid` work as for any other question: a fallback that is not an
+  object becomes `{"text": <value>}`, a rule may return the text as a string, and the class's
+  `validate()` receives `{"text": ...}`.
+- The `llm_router` dialect of `gemini` always asks for JSON (`responseMimeType`); a text
+  question is answered there as the model writes it within that constraint.
 
 ## The templates file
 
@@ -328,6 +360,7 @@ class ExtractSlots(Question):
 | `Question` hook | Default |
 |---|---|
 | `build_prompt(context, text)` | Fill the template with the context, `text` and `output_format`. |
+| `parse(text)` | Read the model's text as the question's `parse` says (`loose`, `strict` or `text`). Return an object; raise `InvalidAnswer` to reject the text. |
 | `format_output(fields)` | The JSON schema of the fields, or the question's `output_formatter`. |
 | `validate(answer, context)` | Return the answer; raise `InvalidAnswer` to reject it. |
 | `fallback(context, reason)` | The question's `fallback`, or `None` (source `invalid`). |

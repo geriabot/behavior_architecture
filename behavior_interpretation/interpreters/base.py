@@ -26,6 +26,7 @@ import time
 
 from behavior_interpretation.validation import check_choice
 from behavior_interpretation.validation import InvalidAnswer
+from behavior_interpretation.validation import TEXT_FIELD
 from behavior_interpretation.validation import validate_fields
 
 
@@ -86,12 +87,18 @@ def check_answer(question, call, answer):
     Validate an answer for the question: fields, choices_from and the class's validate.
 
     A question with a raw schema and no fields only needs an object, and so does a question
-    with `validate: object`, whose fields only make the schema. Raises InvalidAnswer.
+    with `validate: object`, whose fields only make the schema. The text of a question with
+    `parse: text` must not be empty (only blanks) unless the question has `allow_empty`.
+    Raises InvalidAnswer.
     """
     if not isinstance(answer, dict):
         raise InvalidAnswer('the answer is not an object')
     if call.fields and question.spec.get('validate', 'fields') == 'fields':
         answer = validate_fields(answer, call.fields)
+    if question.spec.get('parse') == 'text' and not question.spec.get('allow_empty'):
+        text = answer.get(TEXT_FIELD)
+        if isinstance(text, str) and not text.strip():
+            raise InvalidAnswer('an empty text')
     choices = question.choices(call.context)
     if choices is not None:
         check_choice(answer, *choices)

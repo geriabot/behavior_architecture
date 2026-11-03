@@ -313,6 +313,12 @@ What the implementation adds to, or changes from, sections 3 to 10:
   `llm_router` dialect is the request of attention's Gemini bridge, image included: converted to
   bgr8, not resized, JPEG at quality 95 by OpenCV, mime type image/jpeg.
   Its `llm_manager` dialect follows the google-genai SDK's request in content only.
+- **Text answers and the reading of an answer.** A question with `parse: text` receives the
+  model's text unparsed, as `{"text": <text>}`, without a schema; an empty text is invalid
+  unless the question has `allow_empty`. The answer stays a JSON object, so that the service,
+  the client and the BT nodes treat it as any other answer. A question class may override
+  `parse(text)`, so that a system that reads its answers in a way of its own (as the
+  interaction system's skills do) keeps that reading, and its validation, exactly.
 - **Token cap.** Attention's router sends no token cap, so `max_tokens` is sent only by the
   `llm_manager` dialects. `cache_prefix_len` is accepted and ignored, as the interaction system's
   gateway does for Ollama, OpenAI and Gemini.

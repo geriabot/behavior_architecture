@@ -17,7 +17,8 @@ Parsing of a model's answer and its validation against the question's fields.
 
 Parsing is loose by default: a code fence around the JSON, a reasoning block before it, or
 text around the object are tolerated, and a list is read as its first object (as llm_router
-does). With `parse: strict` the whole text must be JSON, as llm_router read it.
+does). With `parse: strict` the whole text must be JSON, as llm_router read it. With
+`parse: text` the text is not parsed: the answer is {"text": <the text>}.
 Validation is strict about what the asker receives: every field present, with its type. A
 value written as the wrong JSON type but readable as the right one is converted (the string
 "3" for an int field: llm_router passes every value as a string and attention reads it with
@@ -123,7 +124,16 @@ def parse_answer_strict(text):
     return parsed
 
 
-PARSERS = {'loose': parse_answer, 'strict': parse_answer_strict}
+# The field of the answer of a question with `parse: text`
+TEXT_FIELD = 'text'
+
+
+def parse_text(text):
+    """Return the text as it is, as {"text": <the text>} (an empty text is checked later)."""
+    return {TEXT_FIELD: '' if text is None else str(text)}
+
+
+PARSERS = {'loose': parse_answer, 'strict': parse_answer_strict, 'text': parse_text}
 
 
 def _coerce(value, kind, name):

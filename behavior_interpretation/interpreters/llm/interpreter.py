@@ -16,12 +16,13 @@
 The `llm` interpreter: the question's prompt to the model of its route, and its answer.
 
 One call: build the prompt (the question's template, or its class's build_prompt), call the
-backend of the question's route with the structured-output schema and the images (if the
-question uses them), parse (loosely, or strictly with `parse: strict`) and validate (the
-fields, unless `validate: object`, choices_from and the class's validate). A failed or invalid
-answer is retried up to the question's max_retries (0 = no retry). Each attempt is limited by
-the route's timeout_s and by what is left of the request's budget (budget_s 0 cuts nothing);
-when the budget is spent the call fails with the reason `budget`.
+backend of the question's route with the structured-output schema (none for `parse: text`)
+and the images (if the question uses them), read the text with the question's parse()
+(loosely, strictly with `parse: strict`, as text with `parse: text`, or as its class reads it)
+and validate (the fields, unless `validate: object`, choices_from and the class's validate).
+A failed or invalid answer is retried up to the question's max_retries (0 = no retry). Each
+attempt is limited by the route's timeout_s and by what is left of the request's budget
+(budget_s 0 cuts nothing); when the budget is spent the call fails with the reason `budget`.
 
 A route names a backend, a model and the backend's options:
 
@@ -43,7 +44,6 @@ from behavior_interpretation.interpreters.llm.backends import Limits
 from behavior_interpretation.questions import ConfigError
 from behavior_interpretation.questions import Question
 from behavior_interpretation.validation import InvalidAnswer
-from behavior_interpretation.validation import PARSERS
 
 DEFAULT_TIMEOUT_S = 120.0
 
@@ -94,6 +94,8 @@ class LLMInterpreter(Interpreter):
             question.template_text()  # the template must exist
 
     def schema(self, question, call):
+        if question.text_answer():
+            return None  # no structured output: the model writes text
         schema = question.schema(call.context)
         if schema is not None:
             return schema
@@ -145,8 +147,7 @@ class LLMInterpreter(Interpreter):
                             'completion_tokens': result.completion_tokens})
             call.details['model_version'] = result.model_version
             try:
-                parse = PARSERS[question.spec.get('parse', 'loose')]
-                answer = check_answer(question, call, parse(result.text))
+                answer = check_answer(question, call, question.parse(result.text))
             except InvalidAnswer as exc:
                 attempt['invalid'] = str(exc)
                 reason = 'invalid'

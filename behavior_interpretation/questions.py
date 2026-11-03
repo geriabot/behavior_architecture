@@ -30,7 +30,9 @@ questions:
     fallback: none               # none (the result is `invalid`) or a value
     route: behavior_input_with_image   # the llm interpreter's route (default_route if absent)
     max_tokens: 50               # 0: no cap
-    parse: loose                 # loose (default) or strict: the whole text must be JSON
+    parse: loose                 # loose (default), strict (the whole text must be JSON) or
+                                 #   text (the text as it is, as {"text": ...}; no fields)
+    allow_empty: false           # parse: text only: an empty text is a valid answer
     validate: fields             # fields (default) or object: the parsed object as it is
     rule: most_centered          # the rule of the `rule` interpreter (default: the class's
                                  #   answer_without_model)
@@ -53,12 +55,15 @@ import inspect
 import os
 
 from behavior_interpretation.fields import dump_like_nlohmann
+from behavior_interpretation.fields import Field
 from behavior_interpretation.fields import output_format_json
 from behavior_interpretation.fields import parse_fields
 from behavior_interpretation.templates import fill_template
 from behavior_interpretation.templates import slot_value
 from behavior_interpretation.validation import choices_of
+from behavior_interpretation.validation import PARSERS
 from behavior_interpretation.validation import resolve_path
+from behavior_interpretation.validation import TEXT_FIELD
 
 DEFAULTS = {
     'interpreter': 'llm',
@@ -77,6 +82,7 @@ DEFAULTS = {
     'route': '',
     'max_tokens': 0,
     'parse': 'loose',
+    'allow_empty': False,
     'validate': 'fields',
     'rule': '',
     'output_formatter': '',
@@ -84,7 +90,7 @@ DEFAULTS = {
     'variants': {},
 }
 
-PARSE_MODES = ('loose', 'strict')
+PARSE_MODES = tuple(PARSERS)  # loose, strict, text
 VALIDATE_MODES = ('fields', 'object')
 USES_IMAGE = {True: 'true', False: 'false', 'true': 'true', 'false': 'false',
               'optional': 'optional'}
@@ -183,6 +189,16 @@ class Question:
             return self.formatters[name](fields)
         return output_format_json(fields)
 
+    def parse(self, text):
+        """
+        Read the model's text as an object (raise InvalidAnswer if it cannot be read).
+
+        By default, as the question's `parse` says: `loose`, `strict` or `text` ({"text":
+        <the text>}). The object is then validated (the fields, unless `validate: object`,
+        choices_from and validate()).
+        """
+        return PARSERS[self.spec.get('parse', 'loose')](text)
+
     def validate(self, answer, context):
         """Check the answer and return it (raise InvalidAnswer to reject it)."""
         return answer
@@ -220,8 +236,14 @@ class Question:
             raise ConfigError(f'{self.name}: the template "{name}" is not in the templates')
         return self.templates[name]
 
+    def text_answer(self):
+        """Whether the answer is the model's text (`parse: text`)."""
+        return self.spec.get('parse') == 'text'
+
     def fields(self, context):
         """Return the fields of the answer: declared, or taken from the call's context."""
+        if self.text_answer():
+            return [Field(TEXT_FIELD, 'str')]
         if self.spec.get('fields_from'):
             try:
                 value = resolve_path(context, self.spec['fields_from'])
@@ -240,6 +262,10 @@ class Question:
         return copy.deepcopy(self.spec.get('schema'))
 
     def output_format(self, context):
+        if self.text_answer():
+            # A text answer has no schema: only a formatter writes the block
+            name = self.spec.get('output_formatter')
+            return self.formatters[name](self.fields(context)) if name else ''
         schema = self.schema(context)
         if schema is not None:
             return dump_like_nlohmann(schema)
@@ -291,7 +317,14 @@ def resolve_spec(name, definition, variant=''):
     if spec.get('uses_image', False) not in USES_IMAGE:
         raise ConfigError(f'{name}: uses_image must be true, false or optional')
     if spec.get('parse') not in PARSE_MODES:
-        raise ConfigError(f'{name}: parse must be loose or strict')
+        raise ConfigError(f'{name}: parse must be loose, strict or text')
+    if spec.get('parse') == 'text':
+        given = [key for key in ('fields', 'fields_from', 'schema') if spec.get(key)]
+        if given:
+            raise ConfigError(f'{name}: parse: text takes no {", ".join(given)} (the answer is '
+                              f'{{"{TEXT_FIELD}": <the text>}})')
+    elif spec.get('allow_empty'):
+        raise ConfigError(f'{name}: allow_empty applies only to parse: text')
     if spec.get('validate') not in VALIDATE_MODES:
         raise ConfigError(f'{name}: validate must be fields or object')
     return spec
