@@ -308,8 +308,10 @@ What the implementation adds to, or changes from, sections 3 to 10:
   and `llm_manager` (the interaction system's gateway). The `llm_router` requests of Ollama and of
   OpenAI-compatible APIs, and the PNG images, were compared byte for byte with the router's own
   functions, and the `llm_manager` request of Ollama with the body that the gateway's httpx client
-  sends; the `llm_manager` request of OpenAI-compatible APIs has the same parameters as the
-  gateway's openai SDK call (the SDK's serialization is not reproduced byte for byte). Gemini's
+  sends; the `llm_manager` request of OpenAI-compatible APIs is the body that the openai SDK
+  sends for the gateway's call, byte for byte (the SDK writes `model`, `stream` and `messages`
+  first and the other keys in alphabetical order; compared with the requests that the SDK of
+  the interaction system's environment, openai 3.39, sent to a local HTTP server). Gemini's
   `llm_router` dialect is the request of attention's Gemini bridge, image included: converted to
   bgr8, not resized, JPEG at quality 95 by OpenCV, mime type image/jpeg.
   Its `llm_manager` dialect follows the google-genai SDK's request in content only.

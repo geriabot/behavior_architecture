@@ -169,6 +169,44 @@ def test_openai_llm_manager_stream(stub):
     assert manager_strict_schema(SCHEMA) == (STRICT, True)
 
 
+# The bodies that the openai SDK (3.39.0, the interaction system's environment) sent to a local
+# HTTP server for the same calls of the interaction system's gateway (OpenAIProvider)
+SDK_BODIES = [
+    b'{"model":"gpt-x","stream":true,"messages":[{"role":"system","content":"S \xc3\xa9"},'
+    b'{"role":"user","content":"hola \xc3\xb1 \\"q\\""}],"max_completion_tokens":50,'
+    b'"reasoning_effort":"none","response_format":{"type":"json_schema","json_schema":'
+    b'{"name":"response","schema":{"type":"object","properties":{"b":{"type":"integer"},'
+    b'"a":{"type":"string"}},"required":["b","a"],"additionalProperties":false},'
+    b'"strict":true}},"stream_options":{"include_usage":true}}',
+    b'{"model":"gpt-x","stream":true,"messages":[{"role":"user","content":"p"}],'
+    b'"stream_options":{"include_usage":true}}',
+    b'{"model":"gpt-x","stream":true,"messages":[{"role":"user","content":[{"type":"text",'
+    b'"text":"p"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAA"}}]}],'
+    b'"max_completion_tokens":4096,"reasoning_effort":"low","stream_options":'
+    b'{"include_usage":true}}',
+]
+
+
+def test_openai_llm_manager_body_is_the_sdk_body(stub):
+    done = 'data: [DONE]\n\n'
+    schema = {'type': 'object', 'properties': {'b': {'type': 'integer'}, 'a': {'type': 'string'}},
+              'required': ['b', 'a']}
+    calls = [
+        ({'system_prompt': 'S \u00e9'}, 'hola \u00f1 "q"', schema, [], 50),
+        ({'reasoning_effort': ''}, 'p', None, [], 0),
+        ({'reasoning_effort': 'low'}, 'p', None, [SimpleNamespace(base64='AAA')], 50),
+    ]
+    for options, prompt, call_schema, images, max_tokens in calls:
+        backend = create_backend('openai', dict(options, url=stub.url, dialect='llm_manager'))
+        stub.replies.append((200, done, 0))
+        backend.generate('gpt-x', prompt, call_schema, images, Limits(5, max_tokens=max_tokens))
+    assert [r['body'] for r in stub.requests] == SDK_BODIES
+    # The llm_router dialect keeps its own order (attention's router)
+    router = create_backend('openai', {'url': stub.url})
+    assert list(router.build_payload('m', 'p', SCHEMA, [], Limits(5))) == [
+        'model', 'messages', 'temperature', 'response_format']
+
+
 def test_gemini_bridge_request(stub, monkeypatch):
     monkeypatch.setenv('GEMINI_API_KEY', 'test-key')
     image = _image()

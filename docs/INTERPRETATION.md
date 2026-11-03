@@ -297,7 +297,7 @@ interpretation sends a model the same request as before:
 | | `llm_router` (default) | `llm_manager` |
 |---|---|---|
 | Ollama | `stream` false; `format` with `additionalProperties: false`; `options.temperature`; `num_ctx` and `keep_alive` only when set; no token cap | optional system message; `stream` (default true); `keep_alive` (default -1); `think`; `options.num_predict` (`max_tokens`, plus 4096 when the model may think) and `num_ctx` (default 8192) |
-| OpenAI-compatible | text part followed by one `image_url` part per image; `temperature`; strict `response_format` named `answer` | optional system message; streamed with usage; `reasoning_effort`; `max_completion_tokens` (at least 4096 with reasoning); `response_format` named `response`, strict only when every property is required |
+| OpenAI-compatible | text part followed by one `image_url` part per image; `temperature`; strict `response_format` named `answer` | optional system message; streamed with usage; `reasoning_effort`; `max_completion_tokens` (at least 4096 with reasoning); `response_format` named `response`, strict only when every property is required; the body of the openai SDK, byte for byte (keys `model`, `stream`, `messages`, then the others in alphabetical order) |
 | Gemini | `responseMimeType` JSON with the schema in Gemini's form; images as JPEG at quality 95 (needs OpenCV and numpy) | role `user`; optional `systemInstruction`; `maxOutputTokens`; thinking budget 0; images as PNG |
 
 Images are sent in the order of the request, encoded once as lossless PNG without resizing

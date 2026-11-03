@@ -24,8 +24,9 @@ Two dialects, each the request of one of the current gateways:
   prompt (a list with the image parts only when there are images), an optional
   `system_prompt` message, `stream` with usage, `reasoning_effort` ("none" by default),
   `max_completion_tokens` (at least 4096 when reasoning is on) and `response_format` named
-  "response", strict only when every property is required. The SDK's request body is
-  reproduced as JSON content, not necessarily byte for byte.
+  "response", strict only when every property is required. The body is the one the openai
+  Python SDK sends, byte for byte: its keys in the SDK's order (model, stream, messages, then
+  the others in alphabetical order), serialized as httpx does.
 
 Options of the route: url (base, default https://api.openai.com/v1), dialect, api_key_env
 (default OPENAI_API_KEY, if set), temperature, reasoning_effort, system_prompt.
@@ -70,6 +71,18 @@ def manager_strict_schema(schema):
         return out
 
     return fix(copy.deepcopy(schema)), strict
+
+
+# The order in which the openai SDK writes the first keys of a chat completion (the others
+# follow in alphabetical order), as chat.completions.create() builds the body (openai 3.39)
+SDK_FIRST_KEYS = ('model', 'stream', 'service_tier', 'messages')
+
+
+def sdk_ordered(payload):
+    """Return the payload with its keys in the order of the openai SDK's request body."""
+    first = [key for key in SDK_FIRST_KEYS if key in payload]
+    rest = sorted(key for key in payload if key not in SDK_FIRST_KEYS)
+    return {key: payload[key] for key in first + rest}
 
 
 def _image_parts(images):
@@ -134,7 +147,7 @@ class OpenAIBackend(Backend):
                 'type': 'json_schema',
                 'json_schema': {'name': 'response', 'schema': fixed, 'strict': strict},
             }
-        return payload
+        return sdk_ordered(payload)
 
     def headers(self):
         headers = {'Content-Type': 'application/json'}
