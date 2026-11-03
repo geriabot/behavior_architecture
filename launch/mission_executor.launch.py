@@ -18,6 +18,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.actions import GroupAction
 from launch.actions import IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -41,6 +42,14 @@ def generate_launch_description():
         description='Path to the YAML configuration file for the mission executor'
     )
     
+    # The namespace of every node of mission_executor (the orchestrator, the runners and the
+    # node of the BT nodes); /behavior_status is absolute and is not affected
+    namespace_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='',
+        description='Namespace of the nodes of mission_executor'
+    )
+
     # Optional: an interpretation server (launch/interpretation.launch.py), off by default
     interpretation_arg = DeclareLaunchArgument(
         'interpretation',
@@ -52,25 +61,33 @@ def generate_launch_description():
         default_value=os.path.join(pkg_dir, 'config', 'interpretation', 'example_params.yaml'),
         description='ROS parameters file of the interpretation server'
     )
+    # By default the server runs in the namespace of mission_executor, where the client and the
+    # BT nodes resolve the relative service name interpretation/interpret
     interpretation_namespace_arg = DeclareLaunchArgument(
         'interpretation_namespace',
-        default_value='',
-        description='Namespace of the interpretation server'
+        default_value=LaunchConfiguration('namespace'),
+        description='Namespace of the interpretation server (default: namespace)'
     )
-    interpretation_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_dir, 'launch', 'interpretation.launch.py')),
+    # In a scope of its own: the arguments of the included file (its namespace) must not
+    # replace the configurations of this one
+    interpretation_server = GroupAction(
+        scoped=True,
         condition=IfCondition(LaunchConfiguration('interpretation')),
-        launch_arguments={
-            'params_file': LaunchConfiguration('interpretation_params_file'),
-            'namespace': LaunchConfiguration('interpretation_namespace'),
-        }.items()
+        actions=[IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(pkg_dir, 'launch', 'interpretation.launch.py')),
+            launch_arguments={
+                'params_file': LaunchConfiguration('interpretation_params_file'),
+                'namespace': LaunchConfiguration('interpretation_namespace'),
+            }.items()
+        )]
     )
 
     # Mission executor node
     mission_executor_node = Node(
         package='behavior_architecture',
         executable='mission_executor',
+        namespace=LaunchConfiguration('namespace'),
         output='screen',
         emulate_tty=True,
         arguments=[LaunchConfiguration('config_file')]
@@ -78,6 +95,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         config_file_arg,
+        namespace_arg,
         interpretation_arg,
         interpretation_params_arg,
         interpretation_namespace_arg,

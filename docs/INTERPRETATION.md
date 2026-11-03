@@ -62,12 +62,20 @@ Without arguments, the launch file starts the example of `config/interpretation/
 answer `{"behavior_id": -1}`.
 
 `mission_executor.launch.py` starts a server too with `interpretation:=true`, with the arguments
-`interpretation_params_file` and `interpretation_namespace`:
+`interpretation_params_file` and `interpretation_namespace`. The server runs by default in the
+namespace of `mission_executor` (its argument `namespace`, by default none), where the
+orchestrator and the BT nodes resolve the relative service name:
 
 ```bash
 ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/mission.yaml \
+  namespace:=my_robot \
   interpretation:=true interpretation_params_file:=/path/to/interpretation_params.yaml
+# mission_executor's nodes and the service /my_robot/interpretation/interpret, in /my_robot
 ```
+
+A system that launches its server in a namespace of its own (`interpretation_namespace:=ns`, or
+`interpretation.launch.py namespace:=ns`) gives its askers the absolute service name
+(`/ns/interpretation/interpret`).
 
 The server validates its whole configuration when it starts (every question and each of its
 variants, templates, routes, rules and modules) and exits with the reason if any of them cannot
@@ -653,10 +661,10 @@ does not exist, a rule that no module registers, a module that cannot be importe
 that does not exist.
 
 **`the service /.../interpretation/interpret is not available`.** No server runs in the namespace
-of the asking node. With `interpretation_namespace:=ns`, the server is
-`/ns/interpretation/interpret`, while the nodes of `mission_executor` run in the root namespace:
-launch both in the same namespace, or set the BT port `service` (or the client's
-`service_name`) to the absolute name.
+of the asking node. `mission_executor.launch.py` starts the server in the namespace of
+`mission_executor` (`namespace`); with another `interpretation_namespace:=ns`, or a server
+launched apart, the server is `/ns/interpretation/interpret`: set the BT port `service` (or the
+client's `service_name`) to that absolute name.
 
 **`success` is false.** The request cannot be taken; `message` says why: an unknown question or
 variant, a context that is not a JSON object, the key of `fields_from` or `choices_from` missing

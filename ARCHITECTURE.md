@@ -439,7 +439,9 @@ Each system launches its own server, configured only at launch, in its own names
 service name is relative (`interpretation/interpret`), and the client and the BT nodes resolve
 it in the namespace of their node, so two systems on one robot (for example
 `/attention/interpretation/interpret` and `/interaction/interpretation/interpret`) ask their own
-servers. A request carries only what belongs to that call.
+servers. A request carries only what belongs to that call. `mission_executor.launch.py` puts
+`mission_executor` and its server in the same namespace (`namespace`); a server elsewhere is
+asked by its absolute name.
 
 ### The client
 

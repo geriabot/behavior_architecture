@@ -568,10 +568,15 @@ ros2 launch behavior_architecture interpretation.launch.py
 # A server of your own
 ros2 launch behavior_architecture interpretation.launch.py params_file:=/path/to/params.yaml
 
-# With mission_executor (interpretation is false by default)
+# With mission_executor (interpretation is false by default), both in the namespace my_robot
 ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/mission.yaml \
-  interpretation:=true interpretation_params_file:=/path/to/params.yaml
+  namespace:=my_robot interpretation:=true interpretation_params_file:=/path/to/params.yaml
 ```
+
+`mission_executor.launch.py` starts the server in the namespace of `mission_executor`
+(`namespace`, by default none), where its orchestrator and its trees ask. A server started in
+another namespace (`interpretation_namespace`, or a launch file of its own) is reached by its
+absolute name ([Troubleshooting](#troubleshooting)).
 
 ### Declaring questions
 
@@ -695,7 +700,7 @@ log, by question and prompt, so that a run is reproduced without a model.
 
 | Launch file | Arguments (default) | Runs |
 |---|---|---|
-| `mission_executor.launch.py` | `config_file` (`config/restaurant_config.yaml`), `interpretation` (`false`), `interpretation_params_file` (`config/interpretation/example_params.yaml`), `interpretation_namespace` (`""`) | `mission_executor` and, with `interpretation:=true`, an interpretation server |
+| `mission_executor.launch.py` | `config_file` (`config/restaurant_config.yaml`), `namespace` (`""`), `interpretation` (`false`), `interpretation_params_file` (`config/interpretation/example_params.yaml`), `interpretation_namespace` (the value of `namespace`) | `mission_executor` in `namespace` and, with `interpretation:=true`, an interpretation server |
 | `interpretation.launch.py` | `namespace` (`""`), `params_file` (`config/interpretation/example_params.yaml`), `questions_file`, `templates_file`, `log_dir` (each `""`: taken from `params_file`) | `interpretation_server` |
 | `mission_executor_simple.launch.py`, `mission_executor_restaurant.launch.py` | none | `mission_executor` with `config/simple_config.yaml` or `config/restaurant_config.yaml` (need `examples.repos`) |
 | `simple_example.launch.py`, `restaurant_example.launch.py` | none | `simple_example`, `restaurant_example` |
@@ -782,10 +787,10 @@ of the behavior's `package_name` (or the global one); the package must install i
 directory there.
 
 **Interpretation: `the service /.../interpretation/interpret is not available`.** No server runs
-in the namespace of the asking node. A server launched with `interpretation_namespace:=ns` serves
-`/ns/interpretation/interpret`, while the nodes of `mission_executor` run in the root namespace.
-Run both in the same namespace, or give the absolute service name (BT port `service`, or the
-`service_name` argument of `InterpretationClient`). More cases are in
+in the namespace of the asking node. `mission_executor.launch.py` starts both in `namespace`; a
+server in another namespace (`interpretation_namespace:=ns`, or a system that launches its own)
+serves `/ns/interpretation/interpret`, which is given as the absolute service name (BT port
+`service`, or the `service_name` argument of `InterpretationClient`). More cases are in
 [docs/INTERPRETATION.md](docs/INTERPRETATION.md#troubleshooting).
 
 ## Used by

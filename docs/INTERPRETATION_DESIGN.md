@@ -334,6 +334,10 @@ What the implementation adds to, or changes from, sections 3 to 10:
   BehaviorTree.CPP reads a port value enclosed in braces as a blackboard entry, a `context` that
   is a JSON object is taken as written in the XML, and a port `context_keys` adds blackboard
   entries to the context by name (`key` or `name=key`), so that a tree does not build JSON.
+- **Namespaces.** `mission_executor.launch.py` has a `namespace` argument for the nodes of
+  `mission_executor`, and starts the server in the same namespace unless
+  `interpretation_namespace` names another, so that the relative service name resolves to the
+  server without remapping.
 - **Paths.** The server's file parameters accept `package://<package>/<path>`.
 - **Not implemented here.** The importers from each system's current recordings (section 6)
   belong to each system.
