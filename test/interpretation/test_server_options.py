@@ -20,6 +20,7 @@ from types import SimpleNamespace
 from behavior_interpretation import InterpretationServer
 from behavior_interpretation.call_log import read_calls
 from behavior_interpretation.interpreters.llm.backends import FakeBackend
+from behavior_interpretation.questions import ConfigError
 import pytest
 
 
@@ -63,3 +64,43 @@ def test_request_max_tokens_reaches_the_llm_manager_body():
     router = create_backend('ollama', {})
     assert 'num_predict' not in json.dumps(router.build_payload('m', 'p', None, [],
                                                                 Limits(5, max_tokens=77)))
+
+
+# --- route_overrides -------------------------------------------------------------------------
+
+def test_route_overrides_replace_the_route_of_a_question():
+    local = FakeBackend({'answers': ['{"id": 1}']})
+    cloud = FakeBackend({'answers': ['{"id": 2}']})
+    questions = {'q': {'prompt': 'p', 'fields': ['int:id'], 'route': 'local',
+                       'variants': {'v': {'route': 'local', 'prompt': 'pv'}}},
+                 'other': {'prompt': 'o', 'fields': ['int:id'], 'route': 'local'}}
+    s = InterpretationServer(questions=questions, backends={'local': local, 'cloud': cloud},
+                             route_overrides={'q': 'cloud'})
+    assert s.interpret(request('q')).answer == '{"id": 2}'
+    assert s.interpret(request('q', variant='v')).answer == '{"id": 2}'   # over the variant
+    assert s.interpret(request('other')).answer == '{"id": 1}'
+    assert [c['prompt'] for c in cloud.calls] == ['p', 'pv'] and len(local.calls) == 1
+    # Without overrides, the questions file's routes
+    s = InterpretationServer(questions=questions, backends={'local': local, 'cloud': cloud})
+    assert s.interpret(request('q')).answer == '{"id": 1}'
+
+
+def test_route_overrides_from_the_questions_file(tmp_path):
+    path = tmp_path / 'questions.yaml'
+    path.write_text('questions:\n  q: {prompt: p, fields: ["int:id"], route: a}\n'
+                    'route_overrides: {q: b}\n')
+    a, b = FakeBackend({'answers': ['{"id": 1}']}), FakeBackend({'answers': ['{"id": 2}']})
+    s = InterpretationServer(questions_file=str(path), backends={'a': a, 'b': b})
+    assert s.interpret(request('q')).answer == '{"id": 2}'
+    # The server's parameter takes precedence over the file
+    s = InterpretationServer(questions_file=str(path), backends={'a': a, 'b': b},
+                             route_overrides={'q': 'a'})
+    assert s.interpret(request('q')).answer == '{"id": 1}'
+
+
+@pytest.mark.parametrize('overrides', [{'nope': 'a'}, {'q': 'missing'}])
+def test_route_overrides_errors(overrides):
+    with pytest.raises(ConfigError):
+        InterpretationServer(questions={'q': {'prompt': 'p', 'fields': ['int:id']}},
+                             backends={'a': FakeBackend({'answers': ['{"id": 1}']})},
+                             route_overrides=overrides)

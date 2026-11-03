@@ -107,6 +107,8 @@ the process exits with code 0.
       choose_behavior: terse
     interpreter_overrides:
       identify_target: "rule:most_centered"
+    route_overrides:
+      choose_behavior: cloud
     log_dir: /tmp/interpretation
 ```
 
@@ -119,6 +121,7 @@ the process exits with code 0.
 | `default_route` | `""` | The route of the questions that name none. Empty: the first route in alphabetical order. |
 | `variants.<question>` | | The variant used when a request names none. |
 | `interpreter_overrides.<question>` | | The chain of interpreters of the question, replacing its definition, for example `"rule:most_centered,llm"`. |
+| `route_overrides.<question>` | | The route of the question, replacing its definition and its variants' (for example to answer one question with another model without editing the questions file). It must be one of the routes. |
 | `log_dir` | `""` | Directory of the call log; `""` writes no log. |
 | `log_file` | `calls.jsonl` | File name of the call log in `log_dir`. |
 | `service_name` | `interpretation/interpret` | Name of the service, relative to the node's namespace. |
@@ -127,7 +130,7 @@ A file parameter accepts `package://<package>/<path>`, resolved in the share dir
 package. A path starting with `~` is expanded for `log_dir` and for module files.
 
 The questions file may also contain `routes`, `default_route`, `templates`, `variants`,
-`interpreter_overrides` and `question_modules`. The server parameters take precedence over the
+`interpreter_overrides`, `route_overrides` and `question_modules`. The server parameters take precedence over the
 file, route by route and question by question.
 
 ## The questions file

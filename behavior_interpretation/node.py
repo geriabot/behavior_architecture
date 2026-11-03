@@ -26,6 +26,7 @@ Parameters (each system launches its own server, configured only here):
   default_route                    the route of the questions without one
   variants.<question>              the variant used when a request names none
   interpreter_overrides.<question> its chain of interpreters, e.g. "rule:most_centered,llm"
+  route_overrides.<question>       its route, e.g. "cloud" (replacing the questions file's)
   log_dir, log_file                the call log ('' = no log; default file calls.jsonl)
 
 Calls are answered concurrently (the server keeps no state between them).
@@ -102,6 +103,7 @@ class InterpretationServerNode(Node):
             default_route=value('default_route').value,
             variants=nested(self.get_parameters_by_prefix('variants')),
             interpreter_overrides=nested(self.get_parameters_by_prefix('interpreter_overrides')),
+            route_overrides=nested(self.get_parameters_by_prefix('route_overrides')),
             log_dir=value('log_dir').value,
             log_file=value('log_file').value or LOG_FILE,
             node=self)

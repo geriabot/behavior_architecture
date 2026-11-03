@@ -101,3 +101,28 @@ def test_service_in_the_namespace(ros):
     limits = [c['limits'].max_tokens for c in node.server.routes['text'].backend.calls]
     assert limits == [0, 0, 30]
     assert (tmp_path / 'log' / 'calls.jsonl').exists()
+
+
+def _server_node(parameters):
+    rclpy.init()
+    try:
+        return InterpretationServerNode(namespace='/test_options', parameter_overrides=[
+            Parameter(name, value=value) for name, value in parameters.items()])
+    except Exception:
+        rclpy.try_shutdown()
+        raise
+
+
+def test_route_overrides_parameter(tmp_path):
+    questions = tmp_path / 'questions.yaml'
+    questions.write_text('questions:\n  q: {prompt: p, fields: ["int:id"], route: a}\n')
+    node = _server_node({
+        'questions_file': str(questions),
+        'routes.a.backend': 'fake', 'routes.a.answers': ['{"id": 1}'],
+        'routes.b.backend': 'fake', 'routes.b.answers': ['{"id": 2}'],
+        'route_overrides.q': 'b'})
+    try:
+        assert node.server.interpret({'question': 'q'}).answer == '{"id": 2}'
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()

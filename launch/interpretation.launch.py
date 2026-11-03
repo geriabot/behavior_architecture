@@ -19,8 +19,9 @@ ros2 launch behavior_architecture interpretation.launch.py namespace:=my_system 
     params_file:=/path/to/interpretation_params.yaml
 
 params_file is a ROS parameters file for the node `interpretation_server` (its questions_file,
-templates_file, question_modules, routes, variants, interpreter_overrides and log_dir); the
-arguments questions_file, templates_file and log_dir, when given, take precedence over it.
+templates_file, question_modules, routes, variants, interpreter_overrides, route_overrides
+and log_dir); the arguments questions_file, templates_file and log_dir, when given, take
+precedence over it.
 Without arguments, the example of config/interpretation/ (a fake model) is launched.
 """
 

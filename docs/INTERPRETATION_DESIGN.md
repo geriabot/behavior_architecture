@@ -302,7 +302,9 @@ What the implementation adds to, or changes from, sections 3 to 10:
 - **Interpreters.** A failure (no valid answer) ends the chain; only a decline passes the call to
   the next interpreter. The chain is written `interpreter: [rule, llm]` or
   `"rule:most_centered,llm"`; a variant may set it, and the server parameter
-  `interpreter_overrides.<question>` replaces it at launch. Rules and output formatters are
+  `interpreter_overrides.<question>` replaces it at launch. In the same way,
+  `route_overrides.<question>` replaces the route of a question (and of its variants), so that
+  a launch file can answer a question with another model without editing the questions file. Rules and output formatters are
   registered by the question modules (`@rule('name')`, `@formatter('name')`).
 - **Choices.** `choices_from` also accepts the values of `choices_extra` (default `[-1]`, "not
   there"); a context entry that is a list of objects contributes their `id`.

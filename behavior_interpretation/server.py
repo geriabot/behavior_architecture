@@ -26,12 +26,14 @@ calls; every call is written to the call log.
 The configuration (all of it given when the server starts, never by a request):
 
   questions_file   YAML with `questions:` and, optionally, `routes:`, `default_route:`,
-                   `templates:`, `variants:`, `interpreter_overrides:`, `question_modules:`
+                   `templates:`, `variants:`, `interpreter_overrides:`, `route_overrides:`,
+                   `question_modules:`
   templates_file   the prompt templates (templates.py)
   question_modules Python modules with Question subclasses, rules and formatters
   routes           {name: {backend, model, timeout_s, <backend options>}}
   variants         {question: variant}: the variant used when a request names none
   interpreter_overrides  {question: chain}, e.g. {"identify_target": "rule:most_centered"}
+  route_overrides  {question: route}: the route of the question, replacing its definition's
   log_dir          where the call log is written ('' = no log)
 """
 
@@ -89,7 +91,7 @@ class InterpretationServer:
     def __init__(self, questions=None, questions_file='', templates=None, templates_file='',
                  question_modules=(), routes=None, default_route='', variants=None,
                  interpreter_overrides=None, log_dir='', log_file=LOG_FILE, node=None,
-                 backends=None, interpreters=None):
+                 backends=None, interpreters=None, route_overrides=None):
         """
         Build the server; ConfigError if the configuration cannot answer its questions.
 
@@ -132,11 +134,19 @@ class InterpretationServer:
         self.overrides = {k: v for k, v in
                           _merge(data.get('interpreter_overrides'), interpreter_overrides).items()
                           if v}
-        for table, label in ((self.variants, 'variants'), (self.overrides,
-                                                           'interpreter_overrides')):
+        self.route_overrides = {k: v for k, v in
+                                _merge(data.get('route_overrides'), route_overrides).items()
+                                if v}
+        for table, label in ((self.variants, 'variants'),
+                             (self.overrides, 'interpreter_overrides'),
+                             (self.route_overrides, 'route_overrides')):
             unknown = set(table) - set(self.definitions)
             if unknown:
                 raise ConfigError(f'{label}: unknown questions {sorted(unknown)}')
+        for name, route in self.route_overrides.items():
+            if route not in self.routes:
+                raise ConfigError(f'route_overrides: {name}: no route "{route}" '
+                                  f'(routes: {sorted(self.routes)})')
 
         self.log = CallLog(log_dir, log_file)
         self._check()
@@ -148,6 +158,8 @@ class InterpretationServer:
         spec = resolve_spec(name, self.definitions[name], variant)
         if name in self.overrides:
             spec['interpreter'] = self.overrides[name]
+        if name in self.route_overrides:
+            spec['route'] = self.route_overrides[name]
         question_class = self.modules.question_class(name, spec)
         return question_class(name, spec, self.templates, self.modules.formatters)
 
