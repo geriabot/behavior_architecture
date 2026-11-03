@@ -41,6 +41,8 @@ The configuration (all of it given when the server starts, never by a request):
   variants         {question: variant}: the variant used when a request names none
   interpreter_overrides  {question: chain}, e.g. {"identify_target": "rule:most_centered"}
   route_overrides  {question: route}: the route of the question, replacing its definition's
+                   and its variants'; {question: {route: <route>, variants: false}} replaces
+                   only its definition's (a variant that names its own route keeps it)
   log_dir          where the call log is written ('' = no log)
 
 start_warmups() loads the models of the routes with `warmup: true` in the background.
@@ -90,6 +92,31 @@ def _get(request, name, default):
     if isinstance(request, dict):
         return request.get(name, default)
     return getattr(request, name, default)
+
+
+def _route_override(name, value):
+    """
+    Read a route override: `route`, or `{route: <route>, variants: <bool>}`.
+
+    Return (route, whether it also replaces the routes of the question's variants); the
+    plain form replaces them.
+    """
+    if not isinstance(value, dict):
+        return (value or '', True)
+    unknown = set(value) - {'route', 'variants'}
+    if unknown:
+        raise ConfigError(f'route_overrides: {name}: unknown keys {sorted(unknown)} '
+                          f'(route, variants)')
+    variants = value.get('variants', True)
+    if isinstance(variants, str) and variants.strip().lower() in ('true', 'false'):
+        variants = variants.strip().lower() == 'true'
+    if not isinstance(variants, bool):
+        raise ConfigError(f'route_overrides: {name}: variants must be true or false, '
+                          f'not {variants!r}')
+    route = value.get('route') or ''
+    if not isinstance(route, str):
+        raise ConfigError(f'route_overrides: {name}: route must be the name of a route')
+    return (route, variants)
 
 
 def _merge(base, override):
@@ -149,16 +176,18 @@ class InterpretationServer:
         self.overrides = {k: v for k, v in
                           _merge(data.get('interpreter_overrides'), interpreter_overrides).items()
                           if v}
-        self.route_overrides = {k: v for k, v in
-                                _merge(data.get('route_overrides'), route_overrides).items()
-                                if v}
+        self.route_overrides = {}   # question -> (route, whether it replaces its variants')
+        for name, value in _merge(data.get('route_overrides'), route_overrides).items():
+            override = _route_override(name, value)
+            if override[0]:
+                self.route_overrides[name] = override
         for table, label in ((self.variants, 'variants'),
                              (self.overrides, 'interpreter_overrides'),
                              (self.route_overrides, 'route_overrides')):
             unknown = set(table) - set(self.definitions)
             if unknown:
                 raise ConfigError(f'{label}: unknown questions {sorted(unknown)}')
-        for name, route in self.route_overrides.items():
+        for name, (route, _) in self.route_overrides.items():
             if route not in self.routes:
                 raise ConfigError(f'route_overrides: {name}: no route "{route}" '
                                   f'(routes: {sorted(self.routes)})')
@@ -173,11 +202,16 @@ class InterpretationServer:
 
     def question(self, name, variant=''):
         """Build the Question of a question with a variant (and the overrides) applied."""
-        spec = resolve_spec(name, self.definitions[name], variant)
+        definition = self.definitions[name]
+        route, over_variants = self.route_overrides.get(name, ('', True))
+        if route and not over_variants and isinstance(definition, dict):
+            # The definition's route only: a variant that names its own route keeps it
+            definition = dict(definition, route=route)
+        spec = resolve_spec(name, definition, variant)
         if name in self.overrides:
             spec['interpreter'] = self.overrides[name]
-        if name in self.route_overrides:
-            spec['route'] = self.route_overrides[name]
+        if route and over_variants:
+            spec['route'] = route
         question_class = self.modules.question_class(name, spec)
         return question_class(name, spec, self.templates, self.modules.formatters)
 

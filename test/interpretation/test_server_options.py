@@ -98,6 +98,53 @@ def test_route_overrides_from_the_questions_file(tmp_path):
     assert s.interpret(request('q')).answer == '{"id": 1}'
 
 
+def test_route_overrides_can_leave_the_variants_alone():
+    local, cloud, think = (FakeBackend({'answers': [f'{{"id": {i}}}']}) for i in (1, 2, 3))
+    questions = {'q': {'prompt': 'p', 'fields': ['int:id'], 'route': 'local',
+                       'variants': {'reasoning': {'route': 'think'}, 'terse': {'prompt': 't'}}}}
+    backends = {'local': local, 'cloud': cloud, 'think': think}
+
+    def answers(overrides):
+        s = InterpretationServer(questions=questions, backends=backends,
+                                 route_overrides=overrides)
+        return [s.interpret(request('q', variant=v)).answer for v in ('', 'reasoning', 'terse')]
+
+    # variants false: the definition's route; a variant with a route of its own keeps it, and
+    # one without inherits the overridden route
+    assert answers({'q': {'route': 'cloud', 'variants': False}}) == [
+        '{"id": 2}', '{"id": 3}', '{"id": 2}']
+    # The plain form, and variants true, replace the variants' routes too (as before)
+    assert answers({'q': 'cloud'}) == ['{"id": 2}'] * 3
+    assert answers({'q': {'route': 'cloud', 'variants': True}}) == ['{"id": 2}'] * 3
+    assert answers({'q': {'route': 'cloud'}}) == ['{"id": 2}'] * 3
+    assert answers({'q': {'route': 'cloud', 'variants': 'false'}})[1] == '{"id": 3}'
+    # No override
+    assert answers({}) == ['{"id": 1}', '{"id": 3}', '{"id": 1}']
+    assert answers({'q': {'route': '', 'variants': False}}) == answers({})
+
+
+def test_route_overrides_mapping_from_the_questions_file(tmp_path):
+    path = tmp_path / 'questions.yaml'
+    path.write_text('questions:\n'
+                    '  q: {prompt: p, fields: ["int:id"], route: a,\n'
+                    '      variants: {v: {route: a}}}\n'
+                    'route_overrides: {q: {route: b, variants: false}}\n')
+    a, b = FakeBackend({'answers': ['{"id": 1}']}), FakeBackend({'answers': ['{"id": 2}']})
+    s = InterpretationServer(questions_file=str(path), backends={'a': a, 'b': b})
+    assert s.interpret(request('q')).answer == '{"id": 2}'
+    assert s.interpret(request('q', variant='v')).answer == '{"id": 1}'
+
+
+@pytest.mark.parametrize('overrides', [
+    {'q': {'route': 'a', 'variants': 'sometimes'}}, {'q': {'route': 'a', 'other': 1}},
+    {'q': {'route': 'missing', 'variants': False}}, {'q': {'route': ['a']}}])
+def test_route_overrides_mapping_errors(overrides):
+    with pytest.raises(ConfigError):
+        InterpretationServer(questions={'q': {'prompt': 'p', 'fields': ['int:id']}},
+                             backends={'a': FakeBackend({'answers': ['{"id": 1}']})},
+                             route_overrides=overrides)
+
+
 @pytest.mark.parametrize('overrides', [{'nope': 'a'}, {'q': 'missing'}])
 def test_route_overrides_errors(overrides):
     with pytest.raises(ConfigError):

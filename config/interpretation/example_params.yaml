@@ -27,4 +27,5 @@
     #   choose_behavior: "rule:first_offered,llm"
     # route_overrides:            # the route of a question, without editing it
     #   choose_behavior: cloud
+    #   extract_slots: {route: cloud, variants: false}   # its variants keep their own routes
     log_dir: ""                   # where the call log is written ("" = no log)

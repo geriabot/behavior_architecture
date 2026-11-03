@@ -129,6 +129,23 @@ def test_route_overrides_parameter(tmp_path):
         rclpy.try_shutdown()
 
 
+def test_route_overrides_parameter_leaving_the_variants_alone(tmp_path):
+    questions = tmp_path / 'questions.yaml'
+    questions.write_text('questions:\n  q: {prompt: p, fields: ["int:id"], route: a,\n'
+                         '      variants: {v: {route: a}}}\n')
+    node = _server_node({
+        'questions_file': str(questions),
+        'routes.a.backend': 'fake', 'routes.a.answers': ['{"id": 1}'],
+        'routes.b.backend': 'fake', 'routes.b.answers': ['{"id": 2}'],
+        'route_overrides.q.route': 'b', 'route_overrides.q.variants': False})
+    try:
+        assert node.server.interpret({'question': 'q'}).answer == '{"id": 2}'
+        assert node.server.interpret({'question': 'q', 'variant': 'v'}).answer == '{"id": 1}'
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
 def test_warmup_does_not_block_the_service(tmp_path):
     ollama = FailingServer([], (200, {}, '{"done": true}'), delay_s=1.0)
     questions = tmp_path / 'questions.yaml'

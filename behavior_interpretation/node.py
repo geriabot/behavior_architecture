@@ -32,6 +32,8 @@ Parameters (each system launches its own server, configured only here):
   variants.<question>              the variant used when a request names none
   interpreter_overrides.<question> its chain of interpreters, e.g. "rule:most_centered,llm"
   route_overrides.<question>       its route, e.g. "cloud" (replacing the questions file's)
+  route_overrides.<question>.route|variants   the same; variants false leaves the routes of
+                                   its variants alone
   log_dir, log_file                the call log ('' = no log; default file calls.jsonl)
   service_name, cancel_service_name  the services ('' cancel: `cancel` next to service_name)
 

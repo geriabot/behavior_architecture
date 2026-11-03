@@ -402,7 +402,7 @@ hosts two:
 The chain of a question is part of its definition and can be replaced at launch
 (`interpreter_overrides`) or by a variant, without editing the question; this supports
 ablations and fallbacks to rules. The route of a question can be replaced at launch in the same
-way (`route_overrides`). The source of the answer names the interpreter that gave it.
+way (`route_overrides`), for its variants too or for its definition only. The source of the answer names the interpreter that gave it.
 Adding an interpreter (for example a world model) is a subclass of `Interpreter` registered in
 the server (`InterpretationServer(interpreters=...)` in Python); neither the service nor the
 callers change.

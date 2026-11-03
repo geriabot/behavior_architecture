@@ -304,7 +304,10 @@ What the implementation adds to, or changes from, sections 3 to 10:
   `"rule:most_centered,llm"`; a variant may set it, and the server parameter
   `interpreter_overrides.<question>` replaces it at launch. In the same way,
   `route_overrides.<question>` replaces the route of a question (and of its variants), so that
-  a launch file can answer a question with another model without editing the questions file. Rules and output formatters are
+  a launch file can answer a question with another model without editing the questions file.
+  Written as a mapping, `{route: <route>, variants: false}` replaces only the route of the
+  definition, so that the variants that name a route of their own (for example a variant that
+  lets the model reason, on a route of its own) keep it; the plain form keeps its meaning. Rules and output formatters are
   registered by the question modules (`@rule('name')`, `@formatter('name')`).
 - **Choices.** `choices_from` also accepts the values of `choices_extra` (default `[-1]`, "not
   there"); a context entry that is a list of objects contributes their `id`.

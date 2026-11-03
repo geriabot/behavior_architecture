@@ -110,6 +110,7 @@ the process exits with code 0.
       identify_target: "rule:most_centered"
     route_overrides:
       choose_behavior: cloud
+      extract_slots: {route: cloud, variants: false}   # its variants keep their routes
     log_dir: /tmp/interpretation
 ```
 
@@ -124,6 +125,7 @@ the process exits with code 0.
 | `variants.<question>` | | The variant used when a request names none. |
 | `interpreter_overrides.<question>` | | The chain of interpreters of the question, replacing its definition, for example `"rule:most_centered,llm"`. |
 | `route_overrides.<question>` | | The route of the question, replacing its definition and its variants' (for example to answer one question with another model without editing the questions file). It must be one of the routes. |
+| `route_overrides.<question>.route`, `.variants` | `variants`: `true` | The same, written as a mapping. With `variants: false` only the definition's route is replaced: a variant that names a route of its own keeps it, and a variant that names none uses the replaced route, as it uses the definition's. `variants: true` is the plain form. |
 | `log_dir` | `""` | Directory of the call log; `""` writes no log. |
 | `log_file` | `calls.jsonl` | File name of the call log in `log_dir`. |
 | `service_name` | `interpretation/interpret` | Name of the service, relative to the node's namespace. |
