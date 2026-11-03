@@ -20,6 +20,7 @@ each system's server lives in the system's namespace (parameter service_name).
 
 Parameters (each system launches its own server, configured only here):
   questions_file, templates_file   YAML files (server.py, templates.py)
+  templates_files                  [YAML, ...] read after templates_file (later files win)
   question_modules                 [module or path.py, ...]
   (a path may be written package://<package>/<path>, in the package's share directory)
   routes.<route>.backend|model|timeout_s|<option>   e.g. routes.text.backend: ollama
@@ -89,14 +90,17 @@ class InterpretationServerNode(Node):
         for name, default in PARAMETERS.items():
             if not self.has_parameter(name):
                 self.declare_parameter(name, default)
-        if not self.has_parameter('question_modules'):
-            self.declare_parameter('question_modules', [], ParameterDescriptor(
-                type=ParameterType.PARAMETER_STRING_ARRAY))
+        for name in ('question_modules', 'templates_files'):
+            if not self.has_parameter(name):
+                self.declare_parameter(name, [], ParameterDescriptor(
+                    type=ParameterType.PARAMETER_STRING_ARRAY))
 
         value = self.get_parameter
         self.server = InterpretationServer(
             questions_file=resolve_path(value('questions_file').value),
             templates_file=resolve_path(value('templates_file').value),
+            templates_files=[resolve_path(f) for f in (value('templates_files').value or [])
+                             if f],
             question_modules=[resolve_path(m) for m in (value('question_modules').value or [])
                               if m],
             routes=nested(self.get_parameters_by_prefix('routes')),

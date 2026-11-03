@@ -126,3 +126,23 @@ def test_route_overrides_parameter(tmp_path):
     finally:
         node.destroy_node()
         rclpy.try_shutdown()
+
+
+def test_templates_files_parameter(tmp_path):
+    (tmp_path / 'a.yaml').write_text('t: "from a"\nu: "u from a"\n')
+    (tmp_path / 'b.yaml').write_text('t: "from b"\n')
+    questions = tmp_path / 'questions.yaml'
+    questions.write_text('questions:\n  q: {template: t, fields: ["int:id"]}\n'
+                         '  r: {template: u, fields: ["int:id"]}\n')
+    node = _server_node({
+        'questions_file': str(questions),
+        'templates_files': [str(tmp_path / 'a.yaml'), str(tmp_path / 'b.yaml')],
+        'routes.a.backend': 'fake', 'routes.a.answers': ['{"id": 1}']})
+    try:
+        node.server.interpret({'question': 'q'})
+        node.server.interpret({'question': 'r'})
+        prompts = [c['prompt'] for c in node.server.routes['a'].backend.calls]
+        assert prompts == ['from b', 'u from a']
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()

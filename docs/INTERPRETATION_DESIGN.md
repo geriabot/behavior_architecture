@@ -352,6 +352,9 @@ What the implementation adds to, or changes from, sections 3 to 10:
   `interpretation_namespace` names another, so that the relative service name resolves to the
   server without remapping.
 - **Paths.** The server's file parameters accept `package://<package>/<path>`.
+- **Templates files.** Besides `templates_file`, the server parameter `templates_files` lists
+  further templates files, read in order; a later file replaces the templates of the same name,
+  so that a system can keep shared templates and its own in separate files.
 - **Not implemented here.** The importers from each system's current recordings (section 6)
   belong to each system.
 - **Tests.** Tests that create ROS nodes run in a ROS domain of their own (ament_cmake_ros) when

@@ -104,3 +104,31 @@ def test_route_overrides_errors(overrides):
         InterpretationServer(questions={'q': {'prompt': 'p', 'fields': ['int:id']}},
                              backends={'a': FakeBackend({'answers': ['{"id": 1}']})},
                              route_overrides=overrides)
+
+
+# --- templates_files -------------------------------------------------------------------------
+
+def test_templates_files_later_files_win(tmp_path):
+    base = tmp_path / 'base.yaml'
+    base.write_text('templates:\n  a: "A base"\n  b: "B base"\n  c: "C base"\n')
+    system = tmp_path / 'system.yaml'
+    system.write_text('b: "B system"\nc: "C system"\n')
+    local = tmp_path / 'local.yaml'
+    local.write_text('prompts:\n  c: "C local"\n')
+    questions = {name: {'template': name, 'fields': ['int:id']} for name in 'abc'}
+    fake = FakeBackend({'answers': ['{"id": 1}']})
+    s = InterpretationServer(questions=questions, backends={'fake': fake},
+                             templates_file=str(base),
+                             templates_files=[str(system), '', str(local)])
+    for name in 'abc':
+        s.interpret(request(name))
+    assert [c['prompt'] for c in fake.calls] == ['A base', 'B system', 'C local']
+    # Only templates_files, without templates_file
+    s = InterpretationServer(questions={'b': questions['b']}, backends={'fake': fake},
+                             templates_files=[str(base), str(system)])
+    s.interpret(request('b'))
+    assert fake.calls[-1]['prompt'] == 'B system'
+    # A template that no file has is still a configuration error
+    with pytest.raises(ConfigError):
+        InterpretationServer(questions={'d': {'template': 'd', 'fields': ['int:id']}},
+                             backends={'fake': fake}, templates_files=[str(base)])

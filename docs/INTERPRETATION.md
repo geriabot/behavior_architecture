@@ -116,6 +116,7 @@ the process exits with code 0.
 |---|---|---|
 | `questions_file` | `""` | The questions ([The questions file](#the-questions-file)). Required: a server without questions exits. |
 | `templates_file` | `""` | The prompt templates ([The templates file](#the-templates-file)). |
+| `templates_files` | `[]` | More templates files, read in order after `templates_file`: a template of a later file replaces the one of the same name of the earlier files (for example a system's templates over the shared ones). In a parameters file an empty list is written `[""]`. |
 | `question_modules` | `[]` | Python modules, by import name or by the path of a `.py` file, with question classes, rules and formatters ([Question modules](#question-modules)). In a parameters file an empty list is written `[""]`. |
 | `routes.<route>.<key>` | | The routes ([Routes and backends](#routes-and-backends)). |
 | `default_route` | `""` | The route of the questions that name none. Empty: the first route in alphabetical order. |
@@ -273,6 +274,10 @@ A slot without a value is left empty, and `{{` and `}}` write a literal brace. T
 be a nested mapping, for example a ROS parameters file with the templates under
 `ros__parameters`: every text is found by its dotted path and, when its name is unique in the
 file, by its name.
+
+The templates are read, in this order, from the `templates` of the questions file, from
+`templates_file` and from each file of `templates_files`; a later source replaces the templates
+of the same name of the earlier ones.
 
 ## Routes and backends
 

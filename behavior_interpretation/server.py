@@ -29,6 +29,8 @@ The configuration (all of it given when the server starts, never by a request):
                    `templates:`, `variants:`, `interpreter_overrides:`, `route_overrides:`,
                    `question_modules:`
   templates_file   the prompt templates (templates.py)
+  templates_files  more templates files, read after templates_file; a later file replaces the
+                   templates of the same name of the earlier ones
   question_modules Python modules with Question subclasses, rules and formatters
   routes           {name: {backend, model, timeout_s, <backend options>}}
   variants         {question: variant}: the variant used when a request names none
@@ -91,7 +93,7 @@ class InterpretationServer:
     def __init__(self, questions=None, questions_file='', templates=None, templates_file='',
                  question_modules=(), routes=None, default_route='', variants=None,
                  interpreter_overrides=None, log_dir='', log_file=LOG_FILE, node=None,
-                 backends=None, interpreters=None, route_overrides=None):
+                 backends=None, interpreters=None, route_overrides=None, templates_files=()):
         """
         Build the server; ConfigError if the configuration cannot answer its questions.
 
@@ -110,6 +112,9 @@ class InterpretationServer:
 
         self.templates = flatten_templates(data.get('templates') or {})
         self.templates.update(load_templates(templates_file))
+        for path in templates_files or ():
+            if path:
+                self.templates.update(load_templates(path))
         self.templates.update(templates or {})
 
         modules = list(data.get('question_modules') or []) + list(question_modules or [])
