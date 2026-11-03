@@ -84,7 +84,8 @@ def _unreachable(message):
     return error
 
 
-def _read(url, body, headers, timeout):
+def post_text(url, body, headers, timeout):
+    """POST the body and return the text of the answer."""
     try:
         with _open(url, body, headers, timeout) as response:
             return response.read().decode()
@@ -100,10 +101,10 @@ def post_json(url, body, headers, timeout, retries=None, limits=None):
     `limits` gives the call's cancellation and receives the number of retries.
     """
     if retries is None:
-        text = _read(url, body, headers, timeout)
+        text = post_text(url, body, headers, timeout)
     else:
-        text = call_with_retries(lambda left: _read(url, body, headers, left), timeout, retries,
-                                 limits)
+        text = call_with_retries(lambda left: post_text(url, body, headers, left), timeout,
+                                 retries, limits)
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:

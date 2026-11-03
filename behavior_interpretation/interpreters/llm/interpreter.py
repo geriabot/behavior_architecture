@@ -33,6 +33,9 @@ A route names a backend, a model and the backend's options:
 
   routes:
     text: {backend: ollama, model: qwen2.5vl:7b, url: http://localhost:11434, timeout_s: 180}
+
+With `warmup: true` the server loads the route's model when it starts (Backend.warm_up), in a
+thread of its own, so that the service does not wait for it.
 """
 
 import math
@@ -64,6 +67,7 @@ class Route:
         self.backend_type = config.pop('backend', '') or config.pop('type', '')
         self.model = config.pop('model', '')
         self.timeout_s = float(config.pop('timeout_s', DEFAULT_TIMEOUT_S) or DEFAULT_TIMEOUT_S)
+        self.warmup = _flag(name, 'warmup', config.pop('warmup', False))
         self.options = config
         if backend is not None:
             self.backend = backend
@@ -78,6 +82,17 @@ class Route:
 
     def describe(self):
         return f'{self.name} ({self.backend_type}{", " + self.model if self.model else ""})'
+
+
+def _flag(route, key, value):
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ('true', '1', 'yes', 'on'):
+        return True
+    if text in ('', 'false', '0', 'no', 'off'):
+        return False
+    raise ConfigError(f'route {route}: {key} must be true or false, not {value!r}')
 
 
 class LLMInterpreter(Interpreter):

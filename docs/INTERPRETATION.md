@@ -80,7 +80,8 @@ A system that launches its server in a namespace of its own (`interpretation_nam
 The server validates its whole configuration when it starts (every question and each of its
 variants, templates, routes, rules and modules) and exits with the reason if any of them cannot
 be used. Once ready, it logs each route, each question with its chain of interpreters, the path
-of the call log and `Interpretation server ready on interpretation/interpret`. Ctrl-C stops it;
+of the call log and `Interpretation server ready on interpretation/interpret`, and then the
+warm-ups of the routes that have one ([Warm-up](#warm-up)). Ctrl-C stops it;
 the process exits with code 0.
 
 ## Server parameters
@@ -282,8 +283,9 @@ of the same name of the earlier ones.
 
 ## Routes and backends
 
-Every route has `backend` (required), `model` and `timeout_s` (default 120 s, the limit of one
-attempt). The other keys are options of the backend.
+Every route has `backend` (required), `model`, `timeout_s` (default 120 s, the limit of one
+attempt) and `warmup` (default `false`; [Warm-up](#warm-up)). The other keys are options of the
+backend.
 
 | Backend | Options (default) |
 |---|---|
@@ -347,6 +349,21 @@ attempt's), and a request that times out is therefore not repeated. A cancelled 
 further request. These retries are part of one attempt; the question's `max_retries` repeats
 attempts on top of them. The call log counts them in the attempt (`sdk_retries`, only when
 there were any).
+
+### Warm-up
+
+A route with `warmup: true` has its model loaded when the server starts, so that the first
+question does not wait for the model to load. The server does not wait for it: the service is
+offered at once, and each warm-up runs in a thread of its own; a question asked meanwhile is
+answered as usual (and waits for the model, if it is still loading, as it would without the
+warm-up). The log has `route <route>: warming up its model` after the server is ready, and
+then `route <route> (...): warm-up done in <s> s: ...`, or a warning with `warm-up failed` and
+the reason. A failed warm-up changes nothing else.
+
+| Backend | Warm-up |
+|---|---|
+| `ollama` | As the interaction system's gateway when it started: `POST <url>/api/generate` with `{"model": <model>, "prompt": "", "keep_alive": -1}` (the route's `keep_alive` instead, when it has one) and `options.num_ctx` of the route's requests (8192 in `llm_manager` unless set; in `llm_router` only when set). Up to 3 attempts, 1 s and 2 s apart, of at most 180 s each; an HTTP error (an unknown model) ends it at once. |
+| the others | Nothing to load (the gateway had no warm-up for the cloud APIs); the log says so. |
 
 ### Limits and budget
 
@@ -812,7 +829,8 @@ variable named by `api_key_env`, the model name), or, with `recorded`, the call 
 logs because its prompt changed.
 
 **Reason `timeout` or `budget`.** The attempt exceeded the route's `timeout_s` or the request's
-`budget_s`. Local models may need a longer `timeout_s` on their first call, while they load.
+`budget_s`. Local models may need a longer `timeout_s` on their first call, while they load, or
+the route's `warmup: true` ([Warm-up](#warm-up)).
 
 **A tree with `Interpret` fails to build outside `mission_executor`.** The blackboard has no
 `node`; store an `rclcpp::Node::SharedPtr` under `node`, and spin that node, before creating the

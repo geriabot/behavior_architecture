@@ -28,6 +28,7 @@ from rclpy.parameter import Parameter  # noqa: E402
 from sensor_msgs.msg import Image  # noqa: E402
 
 from behavior_interpretation.node import InterpretationServerNode  # noqa: E402,I100
+from failing_server import FailingServer  # noqa: E402
 
 
 @pytest.fixture
@@ -126,6 +127,31 @@ def test_route_overrides_parameter(tmp_path):
     finally:
         node.destroy_node()
         rclpy.try_shutdown()
+
+
+def test_warmup_does_not_block_the_service(tmp_path):
+    ollama = FailingServer([], (200, {}, '{"done": true}'), delay_s=1.0)
+    questions = tmp_path / 'questions.yaml'
+    questions.write_text('questions:\n  q: {prompt: p, fields: ["int:id"], route: a}\n')
+    start = time.monotonic()
+    node = _server_node({
+        'questions_file': str(questions),
+        'routes.a.backend': 'fake', 'routes.a.answers': ['{"id": 1}'],
+        'routes.local.backend': 'ollama', 'routes.local.model': 'm',
+        'routes.local.url': ollama.url, 'routes.local.warmup': True})
+    try:
+        assert time.monotonic() - start < 0.9   # the model takes 1 s to load
+        assert node.server.warmups == {'local': 'loading'}
+        assert node.server.interpret({'question': 'q'}).answer == '{"id": 1}'
+        deadline = time.monotonic() + 5.0
+        while node.server.warmups['local'] == 'loading' and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert node.server.warmups == {'local': 'ready'}
+        assert [r['path'] for r in ollama.requests] == ['/api/generate']
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+        ollama.close()
 
 
 def test_templates_files_parameter(tmp_path):

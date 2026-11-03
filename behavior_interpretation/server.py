@@ -42,11 +42,14 @@ The configuration (all of it given when the server starts, never by a request):
   interpreter_overrides  {question: chain}, e.g. {"identify_target": "rule:most_centered"}
   route_overrides  {question: route}: the route of the question, replacing its definition's
   log_dir          where the call log is written ('' = no log)
+
+start_warmups() loads the models of the routes with `warmup: true` in the background.
 """
 
 import json
 import math
 import threading
+import time
 
 from behavior_interpretation.call_log import CallLog
 from behavior_interpretation.call_log import LOG_FILE
@@ -55,6 +58,7 @@ from behavior_interpretation.interpreters.base import Call
 from behavior_interpretation.interpreters.base import Outcome
 from behavior_interpretation.interpreters.llm import LLMInterpreter
 from behavior_interpretation.interpreters.llm import Route
+from behavior_interpretation.interpreters.llm.backends import BackendError
 from behavior_interpretation.interpreters.rule import RuleInterpreter
 from behavior_interpretation.questions import ConfigError
 from behavior_interpretation.questions import ModuleContents
@@ -160,6 +164,7 @@ class InterpretationServer:
                                   f'(routes: {sorted(self.routes)})')
 
         self.log = CallLog(log_dir, log_file)
+        self.warmups = {}        # route -> loading, ready or failed (start_warmups)
         self._in_progress = {}   # request_id -> the calls in progress, for cancel()
         self._in_progress_lock = threading.Lock()
         self._check()
@@ -203,6 +208,44 @@ class InterpretationServer:
                         raise ConfigError(f'{name}: {exc}') from exc
                 for interpreter, option in self.chain(question):
                     self.interpreters[interpreter].check(question, option)
+
+    # --- Warm-up ----------------------------------------------------------------------------
+
+    def start_warmups(self, report=None):
+        """
+        Load the model of every route with `warmup: true`, each in a thread of its own.
+
+        Return the threads at once (the server answers meanwhile). `report(ok, message)` is
+        called when each warm-up ends; `warmups` holds each route's state: loading, ready or
+        failed.
+        """
+        threads = []
+        for route in self.routes.values():
+            if not route.warmup:
+                continue
+            self.warmups[route.name] = 'loading'
+            thread = threading.Thread(target=self._warm_up, args=(route, report), daemon=True,
+                                      name=f'interpretation-warmup-{route.name}')
+            thread.start()
+            threads.append(thread)
+        return threads
+
+    def _warm_up(self, route, report):
+        start = time.monotonic()
+        try:
+            message = route.backend.warm_up(route.model)
+            ok = True
+        except BackendError as exc:
+            message = str(exc)
+            ok = False
+        except Exception as exc:  # noqa: B902 (a warm-up must not end the server)
+            message = f'{type(exc).__name__}: {exc}'
+            ok = False
+        self.warmups[route.name] = 'ready' if ok else 'failed'
+        if report is not None:
+            report(ok, f'route {route.describe()}: warm-up '
+                       f'{"done" if ok else "failed"} in {time.monotonic() - start:.1f} s: '
+                       f'{message}')
 
     # --- One call ---------------------------------------------------------------------------
 

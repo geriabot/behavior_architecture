@@ -32,9 +32,15 @@ Options of the route: url (default http://localhost:11434), dialect, temperature
 keep_alive, think, stream, system_prompt, api_key_env (only behind a proxy that needs a key).
 `cache_prefix_len` is accepted and ignored, as in the interaction system's gateway (Ollama
 reuses the common prefix of the prompts by itself).
+
+warm_up() (route option warmup) loads the model as the gateway did when it started
+(OllamaProvider.ensure_model_ready): POST <url>/api/generate with an empty prompt, keep_alive
+-1 (or the route's keep_alive) and the num_ctx of the route's requests, up to 3 attempts 1 s
+and 2 s apart, 180 s each; an HTTP error is not retried.
 """
 
 import json
+import time
 
 from behavior_interpretation.fields import strict_schema
 from behavior_interpretation.interpreters.llm.backends.base import Backend
@@ -44,12 +50,16 @@ from behavior_interpretation.interpreters.llm.backends.transport import api_key_
 from behavior_interpretation.interpreters.llm.backends.transport import httpx_body
 from behavior_interpretation.interpreters.llm.backends.transport import post_json
 from behavior_interpretation.interpreters.llm.backends.transport import post_lines
+from behavior_interpretation.interpreters.llm.backends.transport import post_text
 from behavior_interpretation.interpreters.llm.backends.transport import urllib_body
 from behavior_interpretation.validation import strip_code_fence
 
 # Tokens added to num_predict when the model may think (interaction system's gateway)
 REASONING_ALLOWANCE = 4096
 DEFAULT_NUM_CTX = 8192
+# The gateway's warm-up: the delays between its 3 attempts, and the limit of each
+WARMUP_DELAYS_S = (1.0, 2.0)
+WARMUP_TIMEOUT_S = 180.0
 
 
 def normalize_think(think):
@@ -124,6 +134,31 @@ class OllamaBackend(Backend):
         if options:
             payload['options'] = options
         return payload
+
+    def num_ctx(self):
+        """Return the context length of the route's requests (0: Ollama's own)."""
+        if self.dialect() == 'llm_manager':
+            return int(self.option('num_ctx', DEFAULT_NUM_CTX) or 0)
+        return int(self.option('num_ctx') or 0)
+
+    def warm_up(self, model):
+        payload = {'model': model, 'prompt': '', 'keep_alive': self.option('keep_alive', -1)}
+        if self.num_ctx():
+            # Loaded with the context of the requests (otherwise the first one reloads it)
+            payload['options'] = {'num_ctx': self.num_ctx()}
+        url = (self.option('url') or 'http://localhost:11434').rstrip('/') + '/api/generate'
+        error = None
+        for attempt in range(len(WARMUP_DELAYS_S) + 1):
+            try:
+                post_text(url, httpx_body(payload), self.headers(), WARMUP_TIMEOUT_S)
+                return f"Model '{model}' loaded into memory."
+            except BackendError as exc:
+                if exc.status:
+                    raise BackendError(f'Load failed: HTTP {exc.status}') from exc
+                error = exc
+            if attempt < len(WARMUP_DELAYS_S):
+                time.sleep(WARMUP_DELAYS_S[attempt])
+        raise BackendError(f'Failed after {len(WARMUP_DELAYS_S) + 1} attempts: {error}')
 
     def body(self, payload):
         return httpx_body(payload) if self.dialect() == 'llm_manager' else urllib_body(payload)

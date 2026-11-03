@@ -26,7 +26,8 @@ Parameters (each system launches its own server, configured only here):
   templates_files                  [YAML, ...] read after templates_file (later files win)
   question_modules                 [module or path.py, ...]
   (a path may be written package://<package>/<path>, in the package's share directory)
-  routes.<route>.backend|model|timeout_s|<option>   e.g. routes.text.backend: ollama
+  routes.<route>.backend|model|timeout_s|warmup|<option>   e.g. routes.text.backend: ollama
+  (a route with warmup: true has its model loaded at start, without blocking the service)
   default_route                    the route of the questions without one
   variants.<question>              the variant used when a request names none
   interpreter_overrides.<question> its chain of interpreters, e.g. "rule:most_centered,llm"
@@ -140,6 +141,15 @@ class InterpretationServerNode(Node):
         if self.server.log.enabled:
             self.get_logger().info(f'call log: {self.server.log.path}')
         self.get_logger().info(f'Interpretation server ready on {self.service.srv_name}')
+        for name in sorted(r.name for r in self.server.routes.values() if r.warmup):
+            self.get_logger().info(f'route {name}: warming up its model')
+        self.server.start_warmups(self.on_warmup)
+
+    def on_warmup(self, ok, message):
+        if ok:
+            self.get_logger().info(message)
+        else:
+            self.get_logger().warning(message)
 
     def on_cancel(self, request, response):
         if not request.request_id:

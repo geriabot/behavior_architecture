@@ -20,6 +20,7 @@
         #   keep_alive: 30m
         #   num_ctx: 8192
         #   timeout_s: 180.0
+        #   warmup: true            # load the model at start, without blocking the service
     # variants:                   # the variant of a question when a request names none
     #   choose_behavior: terse
     # interpreter_overrides:      # the interpreters of a question, without editing it

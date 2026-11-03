@@ -73,3 +73,12 @@ class Backend:
     def generate(self, model, prompt, schema, images, limits, question=''):
         """Return the model's answer (GenerateResult); `question` is for the replays."""
         raise NotImplementedError
+
+    def warm_up(self, model):
+        """
+        Load the model before the first call (route option warmup); return a message.
+
+        Raise BackendError if it cannot be loaded. By default there is nothing to load (a
+        cloud API), as for the interaction system's gateway.
+        """
+        return f'{self.kind}: nothing to load for {model or "the model"}'

@@ -340,6 +340,13 @@ What the implementation adds to, or changes from, sections 3 to 10:
   (`timeout_s` or the budget left), so that `timeout_s` and `budget_s` still bound a call; a
   request that times out is therefore not repeated, a delay that would reach the limit is not
   waited, and a cancelled call sends no further request.
+- **Warm-up.** The interaction system's gateway loaded its Ollama model when it started
+  (an empty prompt with `keep_alive` -1 and the requests' `num_ctx`, up to 3 attempts), so a
+  route may ask for the same (`warmup: true`, default false). The server offers its service
+  first and loads each such model in a thread of its own, reporting the result in its log, so
+  that a slow load never delays the server or its first answers. Only the `ollama` backend has
+  something to load; the other backends report that there is nothing to load, as the gateway
+  did for the cloud APIs.
 - **Text answers and the reading of an answer.** A question with `parse: text` receives the
   model's text unparsed, as `{"text": <text>}`, without a schema; an empty text is invalid
   unless the question has `allow_empty`. The answer stays a JSON object, so that the service,
